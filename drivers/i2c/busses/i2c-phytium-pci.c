@@ -67,7 +67,7 @@ static int octopus_setup(struct pci_dev *pdev, struct phytium_pci_i2c *c)
 		 */
 		i2c->alert_data.irq = i2c->irq;
 
-		i2c->ara = i2c_setup_smbus_alert(&i2c->adapter, &i2c->alert_data);
+		i2c->ara = i2c_new_smbus_alert_device(&i2c->adapter, &i2c->alert_data);
 		if (!i2c->ara)
 			return -ENODEV;
 	}
