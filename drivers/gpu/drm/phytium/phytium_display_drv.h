@@ -7,7 +7,6 @@
 #ifndef __PHYTIUM_DISPLAY_DRV_H__
 #define __PHYTIUM_DISPLAY_DRV_H__
 
-#include <drm/drmP.h>
 #include <drm/drm_fb_helper.h>
 
 #define DEBUG_LOG 0

@@ -4,12 +4,12 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
-#include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_gem_framebuffer_helper.h>
-#include <linux/reservation.h>
+#include <drm/drm_atomic_uapi.h>
 #include <linux/dma-buf.h>
+#include <drm/drm_fourcc.h>
 
 #include "phytium_display_drv.h"
 #include "phytium_plane.h"
@@ -87,7 +87,7 @@ phytium_plane_atomic_duplicate_state(struct drm_plane *plane)
 
 	state = &phytium_state->base;
 	if (state->fb)
-		drm_framebuffer_reference(state->fb);
+		drm_framebuffer_get(state->fb);
 
 	state->fence = NULL;
 	state->commit = NULL;
@@ -125,7 +125,7 @@ static int phytium_plane_prepare_fb(struct drm_plane *plane,
 		return 0;
 	dma_buf = to_phytium_framebuffer(state->fb)->phytium_gem_obj[0]->base.dma_buf;
 	if (dma_buf) {
-		fence = reservation_object_get_excl_rcu(dma_buf->resv);
+		fence = dma_resv_get_excl_rcu(dma_buf->resv);
 		drm_atomic_set_fence_for_plane(state, fence);
 	}
 
@@ -203,7 +203,7 @@ static void phytium_dc_get_plane_parameter(struct drm_plane *plane)
 	struct phytium_gem_object *phytium_gem_obj = NULL;
 	int i, num_planes = 0;
 
-	num_planes = drm_format_num_planes(fb->format->format);
+	num_planes = fb->format->num_planes;
 	for (i = 0; i < num_planes; i++) {
 		phytium_gem_obj = phytium_fb->phytium_gem_obj[i];
 		phytium_plane->iova[i] =  phytium_gem_obj->iova + fb->offsets[i];
@@ -466,9 +466,9 @@ static void phytium_plane_atomic_update(struct drm_plane *plane,
 	old_fb = old_state->fb;
 
 	if (fb)
-		drm_framebuffer_reference(fb);
+		drm_framebuffer_get(fb);
 	if (old_fb)
-		drm_framebuffer_unreference(old_fb);
+		drm_framebuffer_put(old_fb);
 
 	phytium_dc_get_plane_parameter(plane);
 
@@ -490,7 +490,7 @@ static void phytium_plane_atomic_disable(struct drm_plane *plane,
 
 	old_fb = old_state->fb;
 	if (old_fb)
-		drm_framebuffer_unreference(old_fb);
+		drm_framebuffer_put(old_fb);
 
 	if (plane->type == DRM_PLANE_TYPE_PRIMARY) {
 		phytium_writel_reg(priv, CLEAR_VALUE_RED, priv->dc_reg_base[phys_pipe],

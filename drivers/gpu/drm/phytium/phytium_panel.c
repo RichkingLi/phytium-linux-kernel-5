@@ -4,11 +4,11 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
-#include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_modes.h>
+#include <drm/drm_print.h>
 #include "phytium_display_drv.h"
 #include "phytium_dp.h"
 #include "phytium_panel.h"

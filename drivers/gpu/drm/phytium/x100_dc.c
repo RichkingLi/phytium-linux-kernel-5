@@ -4,10 +4,10 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
-#include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
 #include <asm/neon.h>
+#include <linux/delay.h>
 #include "phytium_display_drv.h"
 #include "x100_reg.h"
 #include "phytium_crtc.h"

@@ -8,9 +8,15 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_gem.h>
-#include <linux/atomic.h>
 #include <drm/drm_atomic.h>
+#include <drm/drm_print.h>
+#include <drm/drm_vblank.h>
+#include <drm/drm_drv.h>
+#include <drm/drm_irq.h>
+#include <drm/drm_ioctl.h>
+#include <linux/atomic.h>
 #include <linux/workqueue.h>
+#include <linux/pci.h>
 #include "phytium_display_drv.h"
 #include "phytium_plane.h"
 #include "phytium_crtc.h"
@@ -324,8 +330,6 @@ static const struct file_operations phytium_drm_driver_fops = {
 
 struct drm_driver phytium_display_drm_driver = {
 	.driver_features	= DRIVER_HAVE_IRQ   |
-				  DRIVER_IRQ_SHARED |
-				  DRIVER_PRIME      |
 				  DRIVER_MODESET    |
 				  DRIVER_ATOMIC     |
 				  DRIVER_GEM,
@@ -337,7 +341,7 @@ struct drm_driver phytium_display_drm_driver = {
 	.irq_uninstall		= phytium_irq_uninstall,
 	.enable_vblank		= phytium_enable_vblank,
 	.disable_vblank		= phytium_disable_vblank,
-	.gem_free_object	= phytium_gem_free_object,
+	.gem_free_object_unlocked	= phytium_gem_free_object,
 	.gem_vm_ops		= &phytium_vm_ops,
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
@@ -469,4 +473,5 @@ module_exit(phytium_display_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Yang Xun <yangxun@phytium.com.cn>");
+MODULE_AUTHOR("Shaojun Yang <yangshaojun@phytium.com.cn>");
 MODULE_DESCRIPTION("Phytium Display Controller");

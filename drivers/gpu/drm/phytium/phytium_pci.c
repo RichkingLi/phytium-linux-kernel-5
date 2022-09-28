@@ -4,6 +4,9 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
+#include <drm/drm_drv.h>
+#include <drm/drm_drv.h>
+#include <linux/pci.h>
 #include "phytium_display_drv.h"
 #include "phytium_pci.h"
 #include "phytium_dp.h"
@@ -201,7 +204,7 @@ failed_pci_private_init:
 	pci_disable_device(pdev);
 failed_enable_device:
 	pci_set_drvdata(pdev, NULL);
-	drm_dev_unref(dev);
+	drm_dev_put(dev);
 
 	return -1;
 }
@@ -220,7 +223,7 @@ static void phytium_pci_remove(struct pci_dev *pdev)
 		pci_disable_msi(pdev);
 	pci_disable_device(pdev);
 	pci_set_drvdata(pdev, NULL);
-	drm_dev_unref(dev);
+	drm_dev_put(dev);
 }
 
 static void phytium_pci_shutdown(struct pci_dev *pdev)

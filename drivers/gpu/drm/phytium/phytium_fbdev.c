@@ -4,8 +4,6 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
-#include <drm/drm.h>
-#include <drm/drmP.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fourcc.h>
@@ -88,8 +86,7 @@ phytium_drm_fbdev_create(struct drm_fb_helper *helper, struct drm_fb_helper_surf
 	fbi->fbops = &phytium_fbdev_ops;
 
 	fb = helper->fb;
-	drm_fb_helper_fill_fix(fbi, fb->pitches[0], fb->format->depth);
-	drm_fb_helper_fill_var(fbi, helper, sizes->fb_width, sizes->fb_height);
+	drm_fb_helper_fill_info(fbi, helper, sizes);
 
 	offset = fbi->var.xoffset * bytes_per_pixel;
 	offset += fbi->var.yoffset * fb->pitches[0];
@@ -123,19 +120,18 @@ int phytium_drm_fbdev_init(struct drm_device *dev)
 	helper = &priv->fbdev_helper;
 	drm_fb_helper_prepare(dev, helper, &phytium_drm_fb_helper_funcs);
 
-	ret = drm_fb_helper_init(dev, helper, PHYTIUM_MAX_CONNECTOR);
+	ret = drm_fb_helper_init(dev, helper);
 	if (ret < 0) {
 		DRM_DEV_ERROR(dev->dev, "Failed to initialize drm fb helper -ret %d\n", ret);
 		return ret;
 	}
 
-	ret = drm_fb_helper_single_add_all_connectors(helper);
-	if (ret < 0) {
-		DRM_DEV_ERROR(dev->dev, "Failed to add connectors - %d/\n", ret);
-		goto err_drm_fb_helper_fini;
-	}
-
 	ret = drm_fb_helper_initial_config(helper, 32);
+	if (ret < 0) {
+		DRM_ERROR("Failed to set up hw configuration.\n");
+		goto err_drm_fb_helper_fini;
+	}  
+
 	return 0;
 
 err_drm_fb_helper_fini:

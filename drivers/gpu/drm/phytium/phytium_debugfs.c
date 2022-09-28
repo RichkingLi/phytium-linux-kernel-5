@@ -4,6 +4,8 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
+#include <drm/drm_print.h>
+#include <drm/drm_file.h>
 #include <linux/debugfs.h>
 #include <linux/fs.h>
 

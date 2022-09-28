@@ -6,6 +6,7 @@
 
 #include <drm/drm_gem.h>
 #include <drm/drm_modeset_helper.h>
+#include <drm/drm_fourcc.h>
 #include "phytium_display_drv.h"
 #include "phytium_fb.h"
 #include "phytium_gem.h"
@@ -25,12 +26,12 @@ static void phytium_fb_destroy(struct drm_framebuffer *fb)
 	int i, num_planes;
 	struct drm_gem_object *obj = NULL;
 
-	num_planes = drm_format_num_planes(fb->format->format);
+	num_planes = fb->format->num_planes;
 
 	for (i = 0; i < num_planes; i++) {
 		obj = &phytium_fb->phytium_gem_obj[i]->base;
 		if (obj)
-			drm_gem_object_unreference_unlocked(obj);
+			drm_gem_object_put(obj);
 	}
 
 	drm_framebuffer_cleanup(fb);
@@ -73,18 +74,21 @@ struct drm_framebuffer *
 phytium_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 			 const struct drm_mode_fb_cmd2 *mode_cmd)
 {
+	const struct drm_format_info *info;
 	int ret = 0, i, num_planes;
 	struct drm_gem_object *obj;
-	unsigned int hsub, vsub, size;
 	struct phytium_gem_object *phytium_gem_obj[PHYTIUM_FORMAT_MAX_PLANE] = {0};
 	struct phytium_framebuffer *phytium_fb;
 	struct phytium_display_private *priv = dev->dev_private;
 
-	hsub = drm_format_horz_chroma_subsampling(mode_cmd->pixel_format);
-	vsub = drm_format_vert_chroma_subsampling(mode_cmd->pixel_format);
-	num_planes = min(drm_format_num_planes(mode_cmd->pixel_format), PHYTIUM_FORMAT_MAX_PLANE);
+	info = drm_get_format_info(dev, mode_cmd);
+	if (!info)
+		return ERR_PTR(-ENOMEM);
+
+	num_planes = min(info->num_planes, (u8)PHYTIUM_FORMAT_MAX_PLANE);
 	for (i = 0; i < num_planes; i++) {
-		unsigned int height = mode_cmd->height / (i ? vsub : 1);
+		unsigned int height = mode_cmd->height / (i ? info->vsub : 1);
+		unsigned int size;
 
 		size = height * mode_cmd->pitches[i] + mode_cmd->offsets[i];
 		obj = drm_gem_object_lookup(file_priv, mode_cmd->handles[i]);
@@ -95,7 +99,7 @@ phytium_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 		}
 
 		if (obj->size < size) {
-			drm_gem_object_unreference_unlocked(obj);
+			drm_gem_object_put(obj);
 			ret = -EINVAL;
 			goto error;
 		}
@@ -117,7 +121,7 @@ phytium_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 	return &phytium_fb->base;
 error:
 	for (i--; i >= 0; i--)
-		drm_gem_object_unreference_unlocked(&phytium_gem_obj[i]->base);
+		drm_gem_object_put(&phytium_gem_obj[i]->base);
 
 	return ERR_PTR(ret);
 }

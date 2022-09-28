@@ -5,6 +5,7 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
+#include <drm/drm_print.h>
 #include "phytium_display_drv.h"
 #include "e2000_reg.h"
 #include "phytium_dp.h"

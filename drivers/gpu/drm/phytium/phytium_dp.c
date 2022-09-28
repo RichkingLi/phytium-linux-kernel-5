@@ -4,13 +4,14 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
-#include <drm/drmP.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_encoder.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_modes.h>
+#include <drm/drm_print.h>
+#include <drm/drm_probe_helper.h>
 #include <sound/hdmi-codec.h>
 #include "phytium_display_drv.h"
 #include "phytium_dp.h"
@@ -374,7 +375,6 @@ static const
 struct drm_connector_helper_funcs phytium_connector_helper_funcs = {
 	.get_modes  = phytium_connector_get_modes,
 	.mode_valid = phytium_connector_mode_valid,
-	.best_encoder = drm_atomic_helper_best_encoder,
 };
 
 static void phytium_dp_set_sink_rates(struct phytium_dp_device *phytium_dp)
@@ -1636,7 +1636,7 @@ static uint8_t phytium_dp_autotest_phy_pattern(struct phytium_dp_device *phytium
 		DP_TEST_80BIT_CUSTOM_PATTERN_7_0)+1] = {0};
 	unsigned char test_pattern;
 
-	ret = drm_dp_dpcd_read(&phytium_dp->aux, DP_TEST_PHY_PATTERN,
+	ret = drm_dp_dpcd_read(&phytium_dp->aux, DP_PHY_TEST_PATTERN,
 				   &phytium_phy_tp.raw,
 				   sizeof(phytium_phy_tp));
 	if (ret <= 0) {
@@ -2281,7 +2281,7 @@ static int phytium_dp_audio_get_eld(struct device *dev, void *data, u8 *buf, siz
 	return 0;
 }
 
-static int phytium_dp_audio_digital_mute(struct device *dev, void *data, bool enable)
+static int phytium_dp_audio_digital_mute(struct device *dev, void *data, bool enable, int direction)
 {
 	struct phytium_dp_device *phytium_dp = data;
 
@@ -2363,7 +2363,7 @@ static int phytium_dp_audio_hook_plugged_cb(struct device *dev, void *data,
 static const struct hdmi_codec_ops phytium_audio_codec_ops = {
 	.hw_params = phytium_dp_audio_hw_params,
 	.audio_shutdown = phytium_dp_audio_shutdown,
-	.digital_mute = phytium_dp_audio_digital_mute,
+	.mute_stream = phytium_dp_audio_digital_mute,
 	.get_eld = phytium_dp_audio_get_eld,
 	.hook_plugged_cb = phytium_dp_audio_hook_plugged_cb,
 };

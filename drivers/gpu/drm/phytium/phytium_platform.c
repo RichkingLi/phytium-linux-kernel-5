@@ -5,8 +5,10 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
+#include <drm/drm_drv.h>
 #include <linux/of_device.h>
 #include <linux/acpi.h>
+#include <linux/dma-mapping.h>
 #include "phytium_display_drv.h"
 #include "phytium_platform.h"
 #include "phytium_dp.h"
@@ -223,7 +225,7 @@ failed_carveout_mem_init:
 	phytium_platform_private_fini(pdev);
 failed_platform_private_init:
 	dev_set_drvdata(&pdev->dev, NULL);
-	drm_dev_unref(dev);
+	drm_dev_put(dev);
 	return -1;
 }
 
@@ -237,7 +239,7 @@ static int phytium_platform_remove(struct platform_device *pdev)
 	drm_dev_unregister(dev);
 	phytium_platform_private_fini(pdev);
 	dev_set_drvdata(&pdev->dev, NULL);
-	drm_dev_unref(dev);
+	drm_dev_put(dev);
 
 	return 0;
 }

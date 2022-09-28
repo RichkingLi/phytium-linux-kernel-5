@@ -4,6 +4,7 @@
  * Copyright (C) 2021 Phytium Technology Co., Ltd.
  */
 
+#include <drm/drm_prime.h>
 #include <linux/dma-buf.h>
 #include <linux/vmalloc.h>
 #include <linux/version.h>
@@ -367,7 +368,7 @@ struct phytium_gem_object *phytium_gem_create_object(struct drm_device *dev, uns
 	return phytium_gem_obj;
 
 failed_dma_alloc:
-	drm_gem_object_unreference_unlocked(&phytium_gem_obj->base);
+	drm_gem_object_put(&phytium_gem_obj->base);
 	return ERR_PTR(ret);
 failed_object_init:
 	kfree(phytium_gem_obj);
@@ -393,7 +394,7 @@ int phytium_gem_dumb_create(struct drm_file *file, struct drm_device *dev,
 		DRM_ERROR("failed to drm_gem_handle_create\n");
 		goto failed_gem_handle;
 	}
-	drm_gem_object_unreference_unlocked(&phytium_gem_obj->base);
+	drm_gem_object_put(&phytium_gem_obj->base);
 
 	return 0;
 failed_gem_handle:
