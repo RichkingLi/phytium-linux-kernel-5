@@ -327,4 +327,9 @@ config ARCH_ZYNQMP
 	help
 	  This enables support for Xilinx ZynqMP Family
 
+config ARCH_PHYTIUM
+    bool "Phytium SoC Family"
+    help
+      This enables support for Phytium ARMv8 SoC family.
+
 endmenu
