@@ -1,0 +1,206 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * DTS file for Phytium E2000Q test board
+ *
+ * Copyright (C) 2022, Phytium Technology Co., Ltd.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+/memreserve/ 0x80000000 0x10000;
+
+#include "e2000q.dtsi"
+
+/{
+	model = "E2000Q TESTC DDR4 Board";
+	compatible = "phytium,e2000q";
+
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
+
+	memory@00{
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x2 0x00000000>;
+	};
+};
+
+&soc {
+	mio3: i2c@2801a000 {
+		compatible = "phytium,i2c";
+		reg = <0x0 0x2801a000 0x0 0x1000>;
+		interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&sysclk_50mhz>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		rtc@68 {
+			compatible = "dallas,ds1339";
+			reg = <0x68>;
+		};
+	};
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&pcie {
+	status = "okay";
+};
+
+&usb3_0 {
+	status = "okay";
+};
+
+&usb3_1 {
+	status = "okay";
+};
+
+&usb2_0 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_1 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_2 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_3 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usb2_4 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&macb0 {
+	phy-mode = "usxgmii";
+	status = "okay";
+};
+
+&macb1 {
+	phy-mode = "usxgmii";
+	status = "okay";
+};
+
+&sata1 {
+	status = "okay";
+};
+
+&macb2 {
+	phy-mode = "sgmii";
+	use-mii;
+	status = "okay";
+};
+
+&macb3 {
+	phy-mode = "sgmii";
+	use-mii;
+	status = "okay";
+};
+
+/*
+ * A Keypad can be customized by users. For example,
+ * users can configure a 8*8 keypad:
+ * - keypad,num-rows = <8>;
+ * - keypad,num-columns = <8>;
+ * - keymap:
+ *   - The highest one byte represents the row
+ *   - The second byte represents the columns
+ *   - The lowest two bytes represent the key value
+ *
+ * Please refer to include/uapi/linux/input-event-codes.h
+ * for key-value definitions.
+ */
+&keypad {
+	keypad,num-rows = <4>;
+	keypad,num-columns = <4>;
+	linux,keymap = <0x00000012	/* KEY_E          */
+			0x00010013	/* KEY_R          */
+			0x00020014	/* KEY_T          */
+			0x00030066	/* KEY_HOME       */
+			0x01000020	/* KEY_D          */
+			0x01010021	/* KEY_F          */
+			0x01020022	/* KEY_G          */
+			0x010300e7	/* KEY_SEND       */
+			0x0200002d	/* KEY_X          */
+			0x0201002e	/* KEY_C          */
+			0x0202002f	/* KEY_V          */
+			0x0203006b	/* KEY_END        */
+			0x0300002c	/* KEY_Z          */
+			0x0301004e	/* KEY_KPLUS      */
+			0x03020030	/* KEY_B          */
+			0x0303003b>;	/* KEY_F1	  */
+	status = "okay";
+};
+
+&hda0 {
+	status = "okay";
+};
+
+&kcs0 {
+	kcs_chan = <1>;
+	kcs_addr = <0xca0>;
+	status = "okay";
+};
+
+&kcs1 {
+	kcs_chan = <2>;
+	kcs_addr = <0xca8>;
+	status = "okay";
+};
+
+&kcs3 {
+	kcs_chan = <4>;
+	kcs_addr = <0xcb0>;
+	status = "okay";
+};
+
+&bt {
+	status = "okay";
+};
+
+&pwm0 {
+	phytium,db = <0 0 0 0 0 0>;
+	status = "okay";
+};
+
+&pwm1 {
+	phytium,db = <0 0 0 1000 1000 0>;
+	status = "okay";
+};
+
+&tacho0 {
+	status = "okay";
+};
+
+&tacho1 {
+	status = "okay";
+};
+
+&nand0 {
+	nand-bus-width = <8>;
+	nand-ecc-mode = "hw";
+	nand-ecc-strength = <8>;
+	nand-ecc-step-size = <512>;
+
+	status = "okay";
+};
+
+&rng0 {
+	status = "okay";
+};

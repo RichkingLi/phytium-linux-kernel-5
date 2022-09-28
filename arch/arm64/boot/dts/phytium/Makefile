@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000q-test-a-ddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000q-test-b-ddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000q-test-c-lpddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000d-test-a-ddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000d-test-b-ddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000d-test-c-lpddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000s-test-a-ddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000s-test-b-ddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000s-test-c-lpddr4.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000q-demo.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000d-demo.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000s-demo.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000q-miniITX.dtb
+dtb-$(CONFIG_ARCH_PHYTIUM) += e2000q-vpx.dtb

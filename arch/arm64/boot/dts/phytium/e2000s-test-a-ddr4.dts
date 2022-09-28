@@ -1,0 +1,149 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * DTS file for Phytium E2000S test board
+ *
+ * Copyright (C) 2022, Phytium Technology Co., Ltd.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+/memreserve/ 0x80000000 0x10000;
+
+#include "e2000s.dtsi"
+
+/{
+	model = "E2000S TESTA DDR4 Board";
+	compatible = "phytium,e2000s";
+
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
+
+	memory@00{
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x7a000000>;
+	};
+};
+
+&soc {
+	mio3: i2c@2801a000 {
+		compatible = "phytium,i2c";
+		reg = <0x0 0x2801a000 0x0 0x1000>;
+		interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&sysclk_50mhz>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		rtc@68 {
+			compatible = "dallas,ds1339";
+			reg = <0x68>;
+		};
+	};
+};
+
+&pcie {
+	status = "okay";
+};
+
+&usb2_0 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_1 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_2 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_3 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usb2_4 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&macb0 {
+	phy-mode = "usxgmii";
+	status = "okay";
+};
+
+&macb1 {
+	phy-mode = "usxgmii";
+	status = "okay";
+};
+
+&dc0 {
+	pipe_mask = /bits/ 8 <0x3>;
+	edp_mask = /bits/ 8 <0x0>;
+	status = "okay";
+};
+
+&i2s_dp0 {
+	dai-name = "phytium-i2s-dp0";
+	status = "okay";
+};
+
+&pmdk_dp{
+	num-dp = <1>;
+	status = "okay";
+};
+
+&spi0 {
+	global-cs = <1>;
+	status = "okay";
+
+	flash: w25q128@0 {
+		compatible ="winbond,w25q128", "jedec,spi-nor";
+		spi-max-frequency = <12000000>;
+		reg = <0>;
+	};
+};
+
+&spi1 {
+	status = "okay";
+};
+
+&spi2 {
+	status = "okay";
+};
+
+&spi3 {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&uart3 {
+	status = "okay";
+};
+
+&sgpio {
+	status = "okay";
+};
+
+&rng0 {
+	status = "okay";
+};

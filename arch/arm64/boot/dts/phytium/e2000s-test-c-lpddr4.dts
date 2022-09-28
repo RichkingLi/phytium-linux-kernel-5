@@ -1,0 +1,220 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * DTS file for Phytium E2000S test board
+ *
+ * Copyright (C) 2022, Phytium Technology Co., Ltd.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+/memreserve/ 0x80000000 0x10000;
+
+#include "e2000s.dtsi"
+
+/{
+	model = "E2000S TESTC LPDDR4 Board";
+	compatible = "phytium,e2000s";
+
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
+
+	memory@00{
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x7a000000>;
+	};
+};
+
+&soc {
+	mio3: i2c@2801a000 {
+		compatible = "phytium,i2c";
+		reg = <0x0 0x2801a000 0x0 0x1000>;
+		interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&sysclk_50mhz>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		rtc@68 {
+			compatible = "dallas,ds1339";
+			reg = <0x68>;
+		};
+	};
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&pcie {
+	status = "okay";
+};
+
+&usb2_0 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_1 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_2 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb2_3 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usb2_4 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&macb0 {
+	phy-mode = "usxgmii";
+	status = "okay";
+};
+
+&macb1 {
+	phy-mode = "usxgmii";
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&kcs0 {
+	kcs_chan = <1>;
+	kcs_addr = <0xca0>;
+	status = "okay";
+};
+
+&kcs1 {
+	kcs_chan = <2>;
+	kcs_addr = <0xca8>;
+	status = "okay";
+};
+
+&kcs3 {
+	kcs_chan = <4>;
+	kcs_addr = <0xcb0>;
+	status = "okay";
+};
+
+&bt {
+	status = "okay";
+};
+
+&onewire0 {
+	status = "okay";
+};
+
+&pwm0 {
+	phytium,db = <0 0 0 0 0 0>;
+	status = "okay";
+};
+
+&pwm1 {
+	phytium,db = <0 0 0 1000 1000 0>;
+	status = "okay";
+};
+
+&pwm2 {
+	phytium,db = <0 0 0 1000 1000 1>;
+	status = "okay";
+};
+
+&pwm3 {
+	phytium,db = <0 0 0 1000 1000 2>;
+	status = "okay";
+};
+
+&pwm4 {
+	phytium,db = <0 0 0 0 0 0>;
+	status = "okay";
+};
+
+&pwm5 {
+	phytium,db = <0 0 0 0 0 0>;
+	status = "okay";
+};
+
+&pwm6 {
+	phytium,db = <0 0 0 0 0 0>;
+	status = "okay";
+};
+
+&pwm7 {
+	phytium,db = <0 0 0 0 0 0>;
+	status = "okay";
+};
+
+&tacho0 {
+	status = "okay";
+};
+
+&tacho1 {
+	status = "okay";
+};
+
+&nand0 {
+	nand-bus-width = <8>;
+	nand-ecc-mode = "hw";
+	nand-ecc-strength = <8>;
+	nand-ecc-step-size = <512>;
+	status = "okay";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		part1@0 {
+			label = "part1";
+			reg = <0x0 0x2000000>;
+		};
+
+		part2@2000000 {
+			label = "part2";
+			reg = <0x2000000 0x4000000>;
+		};
+	};
+};
+
+&i3c0 {
+	status = "okay";
+};
+
+&i3c1 {
+	status = "okay";
+};
+
+&i3c2 {
+	status = "okay";
+};
+
+&i3c3 {
+	status = "okay";
+};
+
+&rng0 {
+	status = "okay";
+};
