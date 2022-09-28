@@ -137,6 +137,10 @@ static const struct xhci_plat_priv xhci_plat_brcm = {
 	.quirks = XHCI_RESET_ON_RESUME | XHCI_SUSPEND_RESUME_CLKS,
 };
 
+static const struct xhci_plat_priv xhci_plat_phytium_e2000 = { 
+	.quirks = XHCI_RESET_ON_RESUME,
+};
+
 static const struct of_device_id usb_xhci_of_match[] = {
 	{
 		.compatible = "generic-xhci",
@@ -178,7 +182,10 @@ static const struct of_device_id usb_xhci_of_match[] = {
 	}, {
 		.compatible = "brcm,bcm7445-xhci",
 		.data = &xhci_plat_brcm,
-	},
+	}, {
+        .compatible = "phytium,e2000-xhci",
+        .data = &xhci_plat_phytium_e2000,
+    },
 	{},
 };
 MODULE_DEVICE_TABLE(of, usb_xhci_of_match);
@@ -518,6 +525,7 @@ static const struct dev_pm_ops xhci_plat_pm_ops = {
 static const struct acpi_device_id usb_xhci_acpi_match[] = {
 	/* XHCI-compliant USB Controller */
 	{ "PNP0D10", },
+	{ "PHYT0039", (kernel_ulong_t)&xhci_plat_phytium_e2000 },
 	{ }
 };
 MODULE_DEVICE_TABLE(acpi, usb_xhci_acpi_match);
