@@ -1,0 +1,7 @@
+config USB_PHYTIUM
+	tristate "PHYTIUM USB Support"
+	depends on USB
+	help
+	  Say Y or M here if your system has a OTG USB Controller based on PHYTIUM SOC.
+
+	  If this driver is compiled as a module, it will be called phytium-usb.ko
