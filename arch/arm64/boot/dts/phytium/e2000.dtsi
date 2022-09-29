@@ -213,16 +213,20 @@
 			status = "disabled";
 		};
 
-		qspi0: qspi@28008000 {
+		qspi0: spi@28008000 {
 			compatible = "phytium,qspi";
 			reg = <0x0 0x28008000 0x0 0x1000>, <0x0 0x0 0x0 0x0fffffff>;
 			reg-names = "qspi", "qspi_mm";
 			clocks = <&sysclk_50mhz>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
 
-			flash@0 {
+			flash@0 { /* Note: By default, chip select 0 is for BIOS, so be careful when enabling this node!!! */
+				reg = <0>;
 				spi-rx-bus-width = <1>;
 				spi-max-frequency = <50000000>;
+				status = "disabled";
 			};
 		};
 
