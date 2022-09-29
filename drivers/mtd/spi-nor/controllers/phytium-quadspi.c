@@ -249,7 +249,7 @@ static int memcpy_from_ftreg(struct phytium_qspi *qspi, u_char *buf, size_t len)
 }
 
 /* Not to enable p_buffer */
-static int memcpy_to_ftreg(struct phytium_qspi *qspi, u_char *buf, size_t len)
+static int memcpy_to_ftreg(struct phytium_qspi *qspi, const u8 *buf, size_t len)
 {
 	u32 val = 0;
 
@@ -414,8 +414,7 @@ static int phytium_qspi_read_flash_sr1(struct phytium_qspi *qspi,
 	return 0;
 }
 
-static int phytium_qspi_read_reg(struct spi_nor *nor,
-			       u8 opcode, u8 *buf, int len)
+static int phytium_qspi_read_reg(struct spi_nor *nor, u8 opcode, u8 *buf, size_t len)
 {
 	struct phytium_qspi_flash *flash = nor->priv;
 	struct device *dev = flash->qspi->dev;
@@ -423,7 +422,7 @@ static int phytium_qspi_read_reg(struct spi_nor *nor,
 	unsigned long iflags;
 	u32 cmd = 0;
 
-	dev_dbg(dev, "read_reg: cmd:%#.2x buf:%pK len:%#x\n", opcode, buf, len);
+	dev_dbg(dev, "read_reg: cmd:%#.2x buf:%pK len:%#lx\n", opcode, buf, len);
 
 	switch (opcode) {
 	case CMD_RDID:
@@ -436,7 +435,7 @@ static int phytium_qspi_read_reg(struct spi_nor *nor,
 		break;
 	}
 
-	cmd  = opcode << QSPI_CMD_PORT_CMD_SHIFT;
+	cmd = opcode << QSPI_CMD_PORT_CMD_SHIFT;
 	cmd |= BIT(QSPI_CMD_PORT_DATA_TRANSFER_SHIFT);
 	cmd |= BIT(QSPI_CMD_PORT_P_BUFFER_SHIFT);
 	cmd |= PHYTIUM_CMD_SCK_SEL << QSPI_CMD_PORT_SCK_SEL_SHIFT;
@@ -452,18 +451,16 @@ static int phytium_qspi_read_reg(struct spi_nor *nor,
 	return 0;
 }
 
-static int phytium_qspi_write_reg(struct spi_nor *nor, u8 opcode,
-				u8 *buf, int len)
+static int phytium_qspi_write_reg(struct spi_nor *nor, u8 opcode, const u8 *buf, size_t len)
 {
 	struct phytium_qspi_flash *flash = nor->priv;
 	struct device *dev = flash->qspi->dev;
 	struct phytium_qspi *qspi = flash->qspi;
 	u32 cmd = 0;
 
-	dev_dbg(dev, "write_reg: cmd:%#.2x buf:%pK len:%#x\n",
-		opcode, buf, len);
+	dev_dbg(dev, "write_reg: cmd:%#.2x buf:%pK len:%#lx\n", opcode, buf, len);
 
-	switch(opcode){
+	switch (opcode) {
 	case CMD_WREN:
 		phytium_qspi_write_enable(qspi, flash);
 		return 0;
@@ -474,15 +471,14 @@ static int phytium_qspi_write_reg(struct spi_nor *nor, u8 opcode,
 		break;
 	}
 
-	cmd  = opcode << QSPI_CMD_PORT_CMD_SHIFT;
+	cmd = opcode << QSPI_CMD_PORT_CMD_SHIFT;
 	cmd |= PHYTIUM_CMD_SCK_SEL << QSPI_CMD_PORT_SCK_SEL_SHIFT;
 	cmd |= flash->cs << QSPI_CMD_PORT_CS_SHIFT;
 
 	if ((len > 8) || (NULL == buf)) {
-		dev_err(dev, "data length exceed. commad %x, len:%d \n", opcode, len);
+		dev_err(dev, "data length exceed. commad %x, len:%ld \n", opcode, len);
 		return -EINVAL;
-	}
-	else if(len > 0){
+	} else if (len > 0) {
 		cmd |= ((len - 1) << QSPI_CMD_PORT_RW_NUM_SHIFT) & QSPI_CMD_PORT_RW_NUM_MASK;
 		cmd |= BIT(QSPI_CMD_PORT_DATA_TRANSFER_SHIFT);
 	}
@@ -493,8 +489,7 @@ static int phytium_qspi_write_reg(struct spi_nor *nor, u8 opcode,
 	return 0;
 }
 
-static ssize_t phytium_qspi_read_tmp(struct phytium_qspi *qspi, u32 read_cmd,
-				 loff_t from, size_t len, u_char *buf)
+static ssize_t phytium_qspi_read_tmp(struct phytium_qspi *qspi, u32 read_cmd, loff_t from, size_t len, u_char *buf)
 {
 	u32 addr = (u32)from;
 	u64 val = 0;
@@ -513,8 +508,7 @@ static ssize_t phytium_qspi_read_tmp(struct phytium_qspi *qspi, u32 read_cmd,
 	return len;
 }
 
-static ssize_t phytium_qspi_read(struct spi_nor *nor, loff_t from, size_t len,
-				 u_char *buf)
+static ssize_t phytium_qspi_read(struct spi_nor *nor, loff_t from, size_t len, u8 *buf)
 {
 	struct phytium_qspi_flash *flash = nor->priv;
 	struct phytium_qspi *qspi = flash->qspi;
@@ -522,10 +516,10 @@ static ssize_t phytium_qspi_read(struct spi_nor *nor, loff_t from, size_t len,
 	u32 addr = (u32)from;
 
 	addr = addr + flash->cs * flash->fsize;
-	dev_dbg(qspi->dev, "read(%#.2x): buf:%pK from:%#.8x len:%#zx\n",
-		nor->read_opcode, buf, addr, len);
 
-	cmd  = cmd << QSPI_RD_CFG_RD_CMD_SHIFT;
+	dev_dbg(qspi->dev, "read(%#.2x): buf:%pK from:%#.8x len:%#zx\n", nor->read_opcode, buf, addr, len);
+
+	cmd = cmd << QSPI_RD_CFG_RD_CMD_SHIFT;
 	cmd |= BIT(QSPI_RD_CFG_D_BUFFER_SHIFT);
 	cmd |= flash->clk_div << QSPI_CMD_PORT_SCK_SEL_SHIFT;
 
@@ -553,15 +547,14 @@ static ssize_t phytium_qspi_read(struct spi_nor *nor, loff_t from, size_t len,
 		break;
 	}
 
-	if((PHYTIUM_QSPI_1_1_4 == flash->addr_width) ||
-	   (PHYTIUM_QSPI_1_4_4 == flash->addr_width)) {
+	if ((PHYTIUM_QSPI_1_1_4 == flash->addr_width) || (PHYTIUM_QSPI_1_4_4 == flash->addr_width)) {
 		cmd |= BIT(QSPI_RD_CFG_RD_LATENCY_SHIFT);
-
 		cmd &= ~QSPI_RD_CFG_DUMMY_MASK;
 		cmd |= (0x07 << QSPI_RD_CFG_DUMMY_SHIFT);
 	}
 
 	dev_dbg(qspi->dev, "read(%#.2x): cmd:%#x\n", nor->read_opcode, cmd);
+
 	if (cmd != flash->read_cmd)
 		flash->read_cmd = cmd;
 
@@ -572,8 +565,7 @@ static ssize_t phytium_qspi_read(struct spi_nor *nor, loff_t from, size_t len,
 	return len;
 }
 
-static ssize_t phytium_qspi_write(struct spi_nor *nor, loff_t to, size_t len,
-				  const u_char *buf)
+static ssize_t phytium_qspi_write(struct spi_nor *nor, loff_t to, size_t len, const u8 *buf)
 {
 	struct phytium_qspi_flash *flash = nor->priv;
 	struct device *dev = flash->qspi->dev;
@@ -585,15 +577,15 @@ static ssize_t phytium_qspi_write(struct spi_nor *nor, loff_t to, size_t len,
 	size_t mask = 0x03;
 
 	addr = addr + flash->cs * flash->fsize;
-	dev_dbg(dev, "write(%#.2x): buf:%p to:%#.8x len:%#zx\n",
-		nor->program_opcode, buf, addr, len);
+
+	dev_dbg(dev, "write(%#.2x): buf:%p to:%#.8x len:%#zx\n", nor->program_opcode, buf, addr, len);
 
 	if (addr & 0x03) {
 		dev_err(dev, "Addr not four-byte aligned!\n");
 		return -EINVAL;
 	}
 
-	cmd  = cmd << QSPI_WR_CFG_WR_CMD_SHIFT;
+	cmd = cmd << QSPI_WR_CFG_WR_CMD_SHIFT;
 	cmd |= BIT(QSPI_WR_CFG_WR_MODE_SHIFT);
 	cmd |= PHYTIUM_CMD_SCK_SEL << QSPI_CMD_PORT_SCK_SEL_SHIFT;
 
@@ -607,20 +599,19 @@ static ssize_t phytium_qspi_write(struct spi_nor *nor, loff_t to, size_t len,
 		cmd |= BIT(QSPI_WR_CFG_WR_ADDR_SEL_SHIFT);
 		break;
 	default:
-		dev_err(qspi->dev, "Not support program command:%#x\n",
-			nor->erase_opcode);
+		dev_err(qspi->dev, "Not support program command:%#x\n", nor->erase_opcode);
 		return -EINVAL;
 	}
 
 	dev_dbg(qspi->dev, "write cmd:%x\n", cmd);
+
 	writel_relaxed(cmd, qspi->io_base + QSPI_WR_CFG_REG);
 
-	for (i = 0; i < len/4; i++) {
+	for (i = 0; i < len/4; i++)
 		writel_relaxed(*(u32 *)(buf + 4*i), qspi->mm_base + addr + 4*i);
-	}
 
 	if (len & mask) {
-		addr =  addr + (len & ~mask);
+		addr = addr + (len & ~mask);
 		phytium_qspi_read_tmp(qspi, flash->read_cmd, addr, 4, &tmp[0]);
 		memcpy(tmp, buf + (len & ~mask), len & mask);
 		writel_relaxed(*(u32 *)(tmp), qspi->mm_base + addr);
@@ -644,7 +635,8 @@ static int phytium_qspi_erase(struct spi_nor *nor, loff_t offs)
 	dev_dbg(dev, "erase(%#.2x):offs:%#x\n", nor->erase_opcode, (u32)offs);
 
 	phytium_qspi_write_enable(qspi, flash);
-	cmd  = cmd << QSPI_CMD_PORT_CMD_SHIFT;
+
+	cmd = cmd << QSPI_CMD_PORT_CMD_SHIFT;
 	cmd |= PHYTIUM_SCK_SEL << QSPI_CMD_PORT_SCK_SEL_SHIFT;
 	cmd |= flash->cs << QSPI_CMD_PORT_CS_SHIFT;
 
@@ -677,8 +669,7 @@ static int phytium_qspi_erase(struct spi_nor *nor, loff_t offs)
 		cmd |= BIT(QSPI_CMD_PORT_SEL_SHIFT);
 		break;
 	default:
-		dev_err(qspi->dev, "Not support erase command:%#x\n",
-			nor->erase_opcode);
+		dev_err(qspi->dev, "Not support erase command:%#x\n", nor->erase_opcode);
 		return -EINVAL;
 	}
 
@@ -689,7 +680,7 @@ static int phytium_qspi_erase(struct spi_nor *nor, loff_t offs)
 	return 0;
 }
 
-static int phytium_qspi_prep(struct spi_nor *nor, enum spi_nor_ops ops)
+static int phytium_qspi_prep(struct spi_nor *nor)
 {
 	struct phytium_qspi_flash *flash = nor->priv;
 	struct phytium_qspi *qspi = flash->qspi;
@@ -698,7 +689,7 @@ static int phytium_qspi_prep(struct spi_nor *nor, enum spi_nor_ops ops)
 	return 0;
 }
 
-static void phytium_qspi_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
+static void phytium_qspi_unprep(struct spi_nor *nor)
 {
 	struct phytium_qspi_flash *flash = nor->priv;
 	struct phytium_qspi *qspi = flash->qspi;
@@ -738,21 +729,26 @@ static int phytium_qspi_get_flash_size(struct phytium_qspi *qspi, u32 size)
 		break;
 	default:
 		value = 0;
-
 		ret = -EINVAL;
 		return ret;
 	}
 
 	return value;
 }
-static int phytium_qspi_flash_setup(struct phytium_qspi *qspi,
-				    struct device_node *np)
+
+static const struct spi_nor_controller_ops phytium_controller_ops = {
+	.prepare = phytium_qspi_prep,
+	.unprepare = phytium_qspi_unprep,
+	.read_reg = phytium_qspi_read_reg,
+	.write_reg = phytium_qspi_write_reg,
+	.read = phytium_qspi_read,
+	.write = phytium_qspi_write,
+	.erase = phytium_qspi_erase,
+};
+
+static int phytium_qspi_flash_setup(struct phytium_qspi *qspi, struct device_node *np)
 {
-	struct spi_nor_hwcaps hwcaps = {
-		.mask = SNOR_HWCAPS_READ |
-			SNOR_HWCAPS_READ_FAST |
-			SNOR_HWCAPS_PP,
-	};
+	struct spi_nor_hwcaps hwcaps = { .mask = SNOR_HWCAPS_READ | SNOR_HWCAPS_READ_FAST | SNOR_HWCAPS_PP, };
 	u32 width, presc;
 	u32 cs_num = 0;
 	u32 max_rate = 0;
@@ -794,30 +790,24 @@ static int phytium_qspi_flash_setup(struct phytium_qspi *qspi,
 		return -EINVAL;
 
 	flash = &qspi->flash[cs_num];
+
 	flash->qspi = qspi;
 	flash->cs = cs_num;
 	flash->presc = presc;
 	flash->clk_div = clk_div;
 	flash->addr_width = addr_width;
-
 	flash->nor.dev = qspi->dev;
 	spi_nor_set_flash_node(&flash->nor, np);
 	flash->nor.priv = flash;
-	mtd = &flash->nor.mtd;
-
-	flash->nor.read = phytium_qspi_read;
-	flash->nor.write = phytium_qspi_write;
-	flash->nor.erase = phytium_qspi_erase;
-	flash->nor.read_reg = phytium_qspi_read_reg;
-	flash->nor.write_reg = phytium_qspi_write_reg;
-	flash->nor.prepare = phytium_qspi_prep;
-	flash->nor.unprepare = phytium_qspi_unprep;
+	flash->nor.controller_ops = &phytium_controller_ops;
 
 	ret = spi_nor_scan(&flash->nor, NULL, &hwcaps);
 	if (ret) {
 		dev_err(qspi->dev, "device scan failed\n");
 		return ret;
 	}
+
+	mtd = &flash->nor.mtd;
 
 	flash->fsize = mtd->size;
 	flash->prefetch_limit = mtd->size - PHYTIUM_QSPI_FIFO_SZ;
@@ -988,7 +978,7 @@ static int phytium_qspi_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id phytium_qspi_match[] = {
-	{.compatible = "phytium,qspi"},
+	{ .compatible = "phytium,qspi" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, phytium_qspi_match);
@@ -1001,9 +991,9 @@ static struct platform_driver phytium_qspi_driver = {
 		.of_match_table = phytium_qspi_match,
 	},
 };
-
 module_platform_driver(phytium_qspi_driver);
 
 MODULE_AUTHOR("Mingshuai Zhu <zhumingshui@phytium.com.cn>");
+MODULE_AUTHOR("Shaojun Yang <yangshaojun@phytium.com.cn>");
 MODULE_DESCRIPTION("Phytium QuadSPI driver");
 MODULE_LICENSE("GPL v2");
