@@ -1,0 +1,33 @@
+#
+# Phytium net device configuration
+#
+
+config NET_VENDOR_PHYTIUM
+    bool "Phytium devices"
+    depends on HAS_IOMEM
+    default y
+    help
+      If you have a network (Ethernet) card belonging to this class, say Y.
+
+
+if NET_VENDOR_PHYTIUM
+
+config PHYTIUM_MACB
+    tristate "Phtyium MACB/GEM support"
+    depends on HAS_DMA
+    select PHYLIB
+    help
+	  Say Y to include
+	  support for the MACB/GEM chip.
+
+	  To compile this driver as a module, choose M here: the module will be macb.
+
+config PHYTIUM_MACB_USE_HWSTAMP
+    bool "Phtyium Use IEEE 1588 hwstamp"
+    depends on PHYTIUM_MACB
+    default y
+     imply PTP_1588_CLOCK
+    help
+      Enable IEEE 1588 Precision Time Protocol (PTP) support for MACB.
+
+endif # NET_VENDOR_PHYTIUM
