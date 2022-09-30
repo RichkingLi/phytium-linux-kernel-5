@@ -142,6 +142,15 @@
 	status = "okay";
 };
 
+/*
+ * In demo board, M.2 interface may insert two types of disks: PCIE (nvme protocol) or SATA (ahci protocol),
+ * so here enable 'sata0' node by default to correspond to the sata drive case. Pin multiplexing exists
+ * in PCIE2 and SATA0, when used as a boot disk, the BIOS can automatically recognize these two conditions.
+ */
+&sata0 {
+	status = "okay";
+};
+
 &sata1 {
 	status = "okay";
 };
