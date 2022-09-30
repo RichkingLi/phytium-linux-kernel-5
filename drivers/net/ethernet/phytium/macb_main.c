@@ -7,6 +7,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/crc32.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -22,7 +23,6 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/dma-mapping.h>
-#include <linux/platform_data/macb.h>
 #include <linux/platform_device.h>
 #include <linux/phy.h>
 #include <linux/of.h>
@@ -298,21 +298,12 @@ static void macb_get_hwaddr(struct macb *bp)
 		bottom = macb_or_gem_readl(bp, SA1B + i * 8);
 		top = macb_or_gem_readl(bp, SA1T + i * 8);
 
-		if (pdata && pdata->rev_eth_addr) {
-			addr[5] = bottom & 0xff;
-			addr[4] = (bottom >> 8) & 0xff;
-			addr[3] = (bottom >> 16) & 0xff;
-			addr[2] = (bottom >> 24) & 0xff;
-			addr[1] = top & 0xff;
-			addr[0] = (top & 0xff00) >> 8;
-		} else {
-			addr[0] = bottom & 0xff;
-			addr[1] = (bottom >> 8) & 0xff;
-			addr[2] = (bottom >> 16) & 0xff;
-			addr[3] = (bottom >> 24) & 0xff;
-			addr[4] = top & 0xff;
-			addr[5] = (top >> 8) & 0xff;
-		}
+		addr[0] = bottom & 0xff;
+		addr[1] = (bottom >> 8) & 0xff;
+		addr[2] = (bottom >> 16) & 0xff;
+		addr[3] = (bottom >> 24) & 0xff;
+		addr[4] = top & 0xff;
+		addr[5] = (top >> 8) & 0xff;
 
 		if (is_valid_ether_addr(addr)) {
 			memcpy(bp->dev->dev_addr, addr, sizeof(addr));
@@ -667,6 +658,7 @@ static int macb_mii_probe(struct net_device *dev)
 		}
 	}
 
+#if 0
 	/* mask with MAC supported features */
 	if (macb_is_gem(bp) && bp->caps & MACB_CAPS_GIGABIT_MODE_AVAILABLE)
 		phydev->supported &= PHY_GBIT_FEATURES;
@@ -677,6 +669,7 @@ static int macb_mii_probe(struct net_device *dev)
 		phydev->supported &= ~SUPPORTED_1000baseT_Half;
 
 	phydev->advertising = phydev->supported;
+#endif
 
 	bp->link = 0;
 	bp->speed = 0;
@@ -3961,18 +3954,13 @@ static int macb_probe(struct platform_device *pdev)
 	if (mac) {
 		ether_addr_copy(bp->dev->dev_addr, mac);
 	} else {
-		err = of_get_nvmem_mac_address(np, bp->dev->dev_addr);
-		if (err) {
-			if (err == -EPROBE_DEFER)
-				goto err_out_free_netdev;
-			macb_get_hwaddr(bp);
-		}
+		macb_get_hwaddr(bp);
 	}
 
 	err = macb_get_phy_mode(pdev);
 	if (err < 0) {
 		pdata = dev_get_platdata(&pdev->dev);
-		if (pdata && pdata->is_rmii)
+		if (pdata)
 			bp->phy_interface = PHY_INTERFACE_MODE_RMII;
 		else
 			bp->phy_interface = PHY_INTERFACE_MODE_MII;

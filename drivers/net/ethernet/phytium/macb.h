@@ -1283,6 +1283,15 @@ enum macb_bd_control {
 	TSTAMP_ALL_FRAMES,
 };
 
+struct macb_platform_data {
+    u32     phy_mask;
+    int     phy_irq_pin;
+    u8      is_rmii;
+    u8      rev_eth_addr;
+    struct clk  *pclk;
+    struct clk  *hclk;
+};
+
 void phytium_gem_ptp_init(struct net_device *ndev);
 void phytium_gem_ptp_remove(struct net_device *ndev);
 int phytium_gem_ptp_txstamp(struct macb_queue *queue, struct sk_buff *skb, struct macb_dma_desc *des);
