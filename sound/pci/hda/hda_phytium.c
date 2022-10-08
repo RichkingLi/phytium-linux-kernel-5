@@ -38,7 +38,6 @@
 #include <linux/vga_switcheroo.h>
 #include <linux/firmware.h>
 #include <linux/acpi.h>
-#include "hda_codec.h"
 #include "hda_controller.h"
 #include "hda_phytium.h"
 
@@ -200,11 +199,6 @@ static int azx_position_check(struct azx *chip, struct azx_dev *azx_dev)
 		azx_dev->irq_pending = 1;
 		schedule_work(&hda->irq_pending_work);
 	}
-	return 0;
-}
-
-static int azx_ft_link_power(struct azx *chip, bool enable)
-{
 	return 0;
 }
 
@@ -731,7 +725,6 @@ static void azx_probe_work(struct work_struct *work)
 /*
  * constructor
  */
-static const struct hdac_io_ops axi_hda_io_ops;
 static const struct hda_controller_ops axi_hda_ops;
 
 static int hda_ft_create(struct snd_card *card, struct platform_device *pdev,
@@ -759,7 +752,8 @@ static int hda_ft_create(struct snd_card *card, struct platform_device *pdev,
 	chip->driver_caps = driver_caps;
 	chip->driver_type = driver_caps & 0xff;
 	chip->dev_index = dev;
-	chip->jackpoll_ms = jackpoll_ms;
+	if (jackpoll_ms[dev] >= 50 && jackpoll_ms[dev] <= 60000)
+		chip->jackpoll_interval = msecs_to_jiffies(jackpoll_ms[dev]);
 	INIT_LIST_HEAD(&chip->pcm_list);
 	INIT_WORK(&hda->irq_pending_work, azx_irq_pending_work);
 	INIT_LIST_HEAD(&hda->list);
@@ -785,7 +779,7 @@ static int hda_ft_create(struct snd_card *card, struct platform_device *pdev,
 	}
 	chip->bdl_pos_adj = bdl_pos_adj[dev];
 
-	err = azx_bus_init(chip, model[dev], &axi_hda_io_ops);
+	err = azx_bus_init(chip, model[dev]);
 	if (err < 0) {
 		kfree(hda);
 		return err;
@@ -793,7 +787,7 @@ static int hda_ft_create(struct snd_card *card, struct platform_device *pdev,
 
 	if (chip->driver_type == AZX_DRIVER_NVIDIA) {
 		dev_dbg(chip->card->dev, "Enable delay in RIRB handling\n");
-		chip->bus.needs_damn_long_delay = 1;
+		chip->bus.core.needs_damn_long_delay = 1;
 	}
 
 	err = snd_device_new(card, SNDRV_DEV_LOWLEVEL, chip, &ops);
@@ -841,8 +835,6 @@ static int azx_first_init(struct azx *chip)
 		dev_err(card->dev, "ioremap error\n");
 		return -ENXIO;
 	}
-
-	bus->cmd_resend = 1;
 
 	if (azx_acquire_irq(chip, 0) < 0)
 		return -EBUSY;
@@ -933,132 +925,20 @@ static int azx_first_init(struct azx *chip)
 /*
  * HDA controller ops.
  */
-
-/* APB register access. */
-static void axi_azx_writel(u32 value, u32 __iomem *addr)
-{
-	writel(value, addr);
-}
-
-static u32 axi_azx_readl(u32 __iomem *addr)
-{
-	return readl(addr);
-}
-
-static void axi_azx_writew(u16 value, u16 __iomem *addr)
-{
-	u32 data;
-	u32 offset;
-
-	offset = (u64)addr & 0x03;
-	addr  = (u16 __iomem *)((u64)addr & 0xFFFFFFFFFFFFFFFC);
-	data = readl(addr);
-	data &= ~(0xFFFF << offset * BYTE_BIT_WIDTH);
-	data |= (value << offset * BYTE_BIT_WIDTH);
-	writel(data, addr);
-}
-
-static u16 axi_azx_readw(u16 __iomem *addr)
-{
-	return readw(addr);
-}
-
-static void axi_azx_writeb(u8 value, u8 __iomem *addr)
-{
-	u32 data;
-	u32 offset;
-
-	offset = (u64)addr & 0x03;
-	addr  = (u8 __iomem *)((u64)addr & 0xFFFFFFFFFFFFFFFC);
-	data = readl(addr);
-	data &= ~(0xFF << offset * BYTE_BIT_WIDTH);
-	data |= (value << offset * BYTE_BIT_WIDTH);
-	writel(data, addr);
-}
-
-static u8 axi_azx_readb(u8 __iomem *addr)
-{
-	return readb(addr);
-}
-
-/* DMA page allocation helpers.  */
-static int dma_alloc_pages(struct hdac_bus *bus,
-			   int type,
-			   size_t size,
-			   struct snd_dma_buffer *buf)
-{
-	struct azx *chip = bus_to_azx(bus);
-	int err;
-
-	err = snd_dma_alloc_pages(type,
-				  bus->dev,
-				  size, buf);
-	if (err < 0)
-		return err;
-	mark_pages_wc(chip, buf, true);
-	return 0;
-}
-
-static void dma_free_pages(struct hdac_bus *bus, struct snd_dma_buffer *buf)
-{
-	struct azx *chip = bus_to_azx(bus);
-
-	mark_pages_wc(chip, buf, false);
-	snd_dma_free_pages(buf);
-}
-
-static int substream_alloc_pages(struct azx *chip,
-				 struct snd_pcm_substream *substream,
-				 size_t size)
-{
-	struct azx_dev *azx_dev = get_azx_dev(substream);
-	int ret;
-
-	mark_runtime_wc(chip, azx_dev, substream, false);
-	ret = snd_pcm_lib_malloc_pages(substream, size);
-	if (ret < 0)
-		return ret;
-
-	mark_runtime_wc(chip, azx_dev, substream, true);
-	return 0;
-}
-
-static int substream_free_pages(struct azx *chip,
-				struct snd_pcm_substream *substream)
-{
-	struct azx_dev *azx_dev = get_azx_dev(substream);
-	mark_runtime_wc(chip, azx_dev, substream, false);
-	return snd_pcm_lib_free_pages(substream);
-}
-
 static void pcm_mmap_prepare(struct snd_pcm_substream *substream,
 			     struct vm_area_struct *area)
 {
 
 }
 
-static const struct hdac_io_ops axi_hda_io_ops = {
-	.reg_writel = axi_azx_writel,
-	.reg_readl = axi_azx_readl,
-	.reg_writew = axi_azx_writew,
-	.reg_readw = axi_azx_readw,
-	.reg_writeb = axi_azx_writeb,
-	.reg_readb = axi_azx_readb,
-	.dma_alloc_pages = dma_alloc_pages,
-	.dma_free_pages = dma_free_pages,
-};
-
 static const struct hda_controller_ops axi_hda_ops = {
-	.substream_alloc_pages = substream_alloc_pages,
-	.substream_free_pages = substream_free_pages,
 	.pcm_mmap_prepare = pcm_mmap_prepare,
 	.position_check = azx_position_check,
-	.link_power = azx_ft_link_power,
 };
 
 static int hda_ft_probe(struct platform_device *pdev)
 {
-	const unsigned int driver_flags = AZX_DCAPS_SYNC_WRITE | AZX_DRIVER_FT;
+	const unsigned int driver_flags = AZX_DRIVER_FT;
 	static int dev;
 	struct snd_card *card;
 	struct hda_ft *hda;
