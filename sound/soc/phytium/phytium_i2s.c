@@ -349,18 +349,23 @@ static const struct snd_soc_dai_ops phytium_i2s_dai_ops = {
 };
 
 #ifdef CONFIG_PM
-static int phytium_i2s_suspend(struct snd_soc_dai *dai)
+static int phytium_i2s_suspend(struct snd_soc_component *component)
 {
 	return 0;
 }
 
-static int phytium_i2s_resume(struct snd_soc_dai *dai)
+static int phytium_i2s_resume(struct snd_soc_component *component)
 {
-	struct i2s_phytium *dev = snd_soc_dai_get_drvdata(dai);
-	if (dai->playback_active)
-		dw_i2s_config(dev, SNDRV_PCM_STREAM_PLAYBACK);
-	if (dai->capture_active)
-		dw_i2s_config(dev, SNDRV_PCM_STREAM_CAPTURE);
+	struct i2s_phytium *dev = snd_soc_component_get_drvdata(component);
+	struct snd_soc_dai *dai;
+	int stream;
+
+	for_each_component_dais(component, dai) {
+		for_each_pcm_streams(stream)
+			if (snd_soc_dai_stream_active(dai, stream))
+				dw_i2s_config(dev, stream);
+	}
+
 	return 0;
 }
 #else
@@ -392,8 +397,6 @@ static struct snd_soc_dai_driver phytium_i2s_dai = {
 			   SNDRV_PCM_FMTBIT_S32_LE,
 	},
 	.ops     = &phytium_i2s_dai_ops,
-	.suspend = phytium_i2s_suspend,
-	.resume  = phytium_i2s_resume,
 	.symmetric_rates = 1,
 };
 
@@ -472,10 +475,10 @@ azx_assign_device(struct azx *chip, struct snd_pcm_substream *substream)
 	return stream_to_azx_dev(s);
 }
 
-static int phytium_pcm_open(struct snd_pcm_substream *substream)
+static int phytium_pcm_open(struct snd_soc_component *component, struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct i2s_phytium *dev = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct i2s_phytium *dev = snd_soc_dai_get_drvdata(asoc_rtd_to_cpu(rtd, 0));
 
 	struct azx *chip = &dev->chip;
 	struct azx_dev *azx_dev;
@@ -492,10 +495,10 @@ static int phytium_pcm_open(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int phytium_pcm_close(struct snd_pcm_substream *substream)
+static int phytium_pcm_close(struct snd_soc_component *component, struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct i2s_phytium *dev = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct i2s_phytium *dev = snd_soc_dai_get_drvdata(asoc_rtd_to_cpu(rtd, 0));
 	struct azx *chip = &dev->chip;
 	struct azx_dev *azx_dev = get_azx_dev(substream);
 
@@ -508,21 +511,20 @@ static int phytium_pcm_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int phytium_pcm_new(struct snd_soc_pcm_runtime *rtd)
+static int phytium_pcm_new(struct snd_soc_component *component, struct snd_soc_pcm_runtime *rtd)
 {
-	struct i2s_phytium *i2s = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct i2s_phytium *i2s = snd_soc_dai_get_drvdata(asoc_rtd_to_cpu(rtd, 0));
 	size_t size = phytium_pcm_hardware.buffer_bytes_max;
 
-	return snd_pcm_lib_preallocate_pages_for_all(rtd->pcm,
-			SNDRV_DMA_TYPE_DEV,
-			i2s->pdev, size, size);
+	snd_pcm_set_managed_buffer_all(rtd->pcm, SNDRV_DMA_TYPE_DEV, i2s->pdev, size, size);
+
+	return 0;
 }
 
 static const struct i2s_io_ops axi_i2s_io_ops;
 static const struct i2s_controller_ops axi_i2s_ops;
 
-static int phytium_pcm_hw_params(struct snd_pcm_substream *substream,
-		struct snd_pcm_hw_params *hw_params)
+static int phytium_pcm_hw_params(struct snd_soc_component *component, struct snd_pcm_substream *substream, struct snd_pcm_hw_params *hw_params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct i2s_phytium *dev = runtime->private_data;
@@ -727,7 +729,7 @@ int snd_i2s_stream_setup(struct i2s_stream *azx_dev, int pcie, u32 paddr)
 	return 0;
 }
 
-static int phytium_pcm_prepare(struct snd_pcm_substream *substream)
+static int phytium_pcm_prepare(struct snd_soc_component *component, struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct i2s_phytium *dev = runtime->private_data;
@@ -793,7 +795,7 @@ void snd_i2s_stream_start(struct i2s_stream *azx_dev, bool fresh_start)
 	azx_dev->running = true;
 }
 
-static int phytium_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
+static int phytium_pcm_trigger(struct snd_soc_component *component, struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct i2s_phytium *dev = runtime->private_data;
@@ -849,7 +851,7 @@ static int phytium_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	return 0;
 }
 
-static void phytium_pcm_free(struct snd_pcm *pcm)
+static void phytium_pcm_free(struct snd_soc_component *component, struct snd_pcm *pcm)
 {
 	snd_pcm_lib_preallocate_free_for_all(pcm);
 }
@@ -883,7 +885,7 @@ void snd_i2s_stream_cleanup(struct i2s_stream *azx_dev)
 	}
 }
 
-static int phytium_pcm_hw_free(struct snd_pcm_substream *substream)
+static int phytium_pcm_hw_free(struct snd_soc_component *component, struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct i2s_phytium *dev = runtime->private_data;
@@ -902,7 +904,7 @@ static int phytium_pcm_hw_free(struct snd_pcm_substream *substream)
 	return err;
 }
 
-static snd_pcm_uframes_t phytium_pcm_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t phytium_pcm_pointer(struct snd_soc_component *component, struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct i2s_phytium *dev = runtime->private_data;
@@ -914,7 +916,9 @@ static snd_pcm_uframes_t phytium_pcm_pointer(struct snd_pcm_substream *substream
 	return bytes_to_frames(substream->runtime, pos);
 }
 
-static const struct snd_pcm_ops phytium_pcm_ops = {
+static const struct snd_soc_component_driver phytium_i2s_component = {
+	.name		= "phytium-i2s",
+
 	.open = phytium_pcm_open,
 	.close = phytium_pcm_close,
 	.hw_params = phytium_pcm_hw_params,
@@ -922,13 +926,11 @@ static const struct snd_pcm_ops phytium_pcm_ops = {
 	.hw_free = phytium_pcm_hw_free,
 	.trigger = phytium_pcm_trigger,
 	.pointer = phytium_pcm_pointer,
-};
 
-static const struct snd_soc_component_driver phytium_i2s_component = {
-	.name		= "phytium-i2s",
-	.pcm_new = phytium_pcm_new,
-	.pcm_free = phytium_pcm_free,
-	.ops = &phytium_pcm_ops,
+	.pcm_construct = phytium_pcm_new,
+	.pcm_destruct = phytium_pcm_free,
+	.suspend = phytium_i2s_suspend,
+	.resume = phytium_i2s_resume,
 };
 
 /* Maximum bit resolution of a channel - not uniformly spaced */
@@ -1018,7 +1020,7 @@ static int phytium_configure_dai_by_dt(struct i2s_phytium *dev)
 	return 0;
 }
 
-static int dma_alloc_pages(struct i2sc_bus *bus, int type, size_t size,
+static int phytium_dma_alloc_pages(struct i2sc_bus *bus, int type, size_t size,
 			       struct snd_dma_buffer *buf)
 {
 	int err;
@@ -1245,15 +1247,15 @@ static int substream_alloc_pages(struct azx *chip,
 	return 0;
 }
 
-static void dma_free_pages(struct i2sc_bus *bus,
+static void phytium_dma_free_pages(struct i2sc_bus *bus,
 			       struct snd_dma_buffer *buf)
 {
 	snd_dma_free_pages(buf);
 }
 
 static const struct i2s_io_ops axi_i2s_io_ops = {
-	.dma_alloc_pages = dma_alloc_pages,
-	.dma_free_pages = dma_free_pages,
+	.dma_alloc_pages = phytium_dma_alloc_pages,
+	.dma_free_pages = phytium_dma_free_pages,
 };
 
 static const struct i2s_controller_ops axi_i2s_ops = {

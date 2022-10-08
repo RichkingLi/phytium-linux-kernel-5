@@ -64,7 +64,7 @@ static int pmdk_dp0_init(struct snd_soc_pcm_runtime *runtime)
 {
 	struct snd_soc_card *card = runtime->card;
 	struct pmdk_dp_private *priv = snd_soc_card_get_drvdata(card);
-	struct snd_soc_component *component = runtime->codec_dai->component;
+	struct snd_soc_component *component = asoc_rtd_to_codec(runtime, 0)->component;
 	int ret;
 
 	ret = snd_soc_card_jack_new(card, "DP/HDMI 0",
@@ -83,7 +83,7 @@ static int pmdk_dp1_init(struct snd_soc_pcm_runtime *runtime)
 {
 	struct snd_soc_card *card = runtime->card;
 	struct pmdk_dp_private *priv = snd_soc_card_get_drvdata(card);
-	struct snd_soc_component *component = runtime->codec_dai->component;
+	struct snd_soc_component *component = asoc_rtd_to_codec(runtime, 0)->component;
 	int ret;
 
 	ret = snd_soc_card_jack_new(card, "DP/HDMI 1",
@@ -102,7 +102,7 @@ static int pmdk_dp2_init(struct snd_soc_pcm_runtime *runtime)
 {
 	struct snd_soc_card *card = runtime->card;
 	struct pmdk_dp_private *priv = snd_soc_card_get_drvdata(card);
-	struct snd_soc_component *component = runtime->codec_dai->component;
+	struct snd_soc_component *component = asoc_rtd_to_codec(runtime, 0)->component;
 	int ret;
 
 	ret = snd_soc_card_jack_new(card, "DP/HDMI 2",
@@ -117,37 +117,43 @@ static int pmdk_dp2_init(struct snd_soc_pcm_runtime *runtime)
 	return ret;
 }
 
+SND_SOC_DAILINK_DEFS(hifi0,
+	DAILINK_COMP_ARRAY(COMP_CPU("phytium-i2s-dp0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("hdmi-audio-codec.0.auto", "i2s-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
+SND_SOC_DAILINK_DEFS(hifi1,
+	DAILINK_COMP_ARRAY(COMP_CPU("phytium-i2s-dp1")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("hdmi-audio-codec.1.auto", "i2s-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
+SND_SOC_DAILINK_DEFS(hifi2,
+	DAILINK_COMP_ARRAY(COMP_CPU("phytium-i2s-dp2")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("hdmi-audio-codec.2.auto", "i2s-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
 static struct snd_soc_dai_link pmdk_dai0 = {
 	.name = "Phytium dp0-audio",
 	.stream_name = "Playback",
-	.cpu_dai_name = "phytium-i2s-dp0",
-	.codec_dai_name = "i2s-hifi",
-	.platform_name = "snd-soc-dummy",
-	.codec_name = "hdmi-audio-codec.0.auto",
 	.dai_fmt = SMDK_DAI_FMT,
 	.init = pmdk_dp0_init,
+	SND_SOC_DAILINK_REG(hifi0),
 };
 
 static struct snd_soc_dai_link pmdk_dai1 = {
 	.name = "Phytium dp1-audio",
 	.stream_name = "Playback",
-	.cpu_dai_name = "phytium-i2s-dp1",
-	.codec_dai_name = "i2s-hifi",
-	.platform_name = "snd-soc-dummy",
-	.codec_name = "hdmi-audio-codec.1.auto",
 	.dai_fmt = SMDK_DAI_FMT,
 	.init = pmdk_dp1_init,
+	SND_SOC_DAILINK_REG(hifi1),
 };
 
 static struct snd_soc_dai_link pmdk_dai2 = {
 	.name = "Phytium dp2-audio",
 	.stream_name = "Playback",
-	.cpu_dai_name = "phytium-i2s-dp2",
-	.codec_dai_name = "i2s-hifi",
-	.platform_name = "snd-soc-dummy",
-	.codec_name = "hdmi-audio-codec.2.auto",
 	.dai_fmt = SMDK_DAI_FMT,
 	.init = pmdk_dp2_init,
+	SND_SOC_DAILINK_REG(hifi2),
 };
 
 static struct snd_soc_card pmdk = {

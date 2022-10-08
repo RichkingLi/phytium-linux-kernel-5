@@ -43,15 +43,17 @@ static const struct snd_soc_dapm_route pmdk_es8336_audio_map[] = {
 #define PMDK_DAI_FMT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF | \
 	SND_SOC_DAIFMT_CBS_CFS)
 
+SND_SOC_DAILINK_DEFS(hifi,
+	DAILINK_COMP_ARRAY(COMP_CPU("phytium-i2s-lsd")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("i2c-ESSX8336:00", "es8336-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
 static struct snd_soc_dai_link pmdk_dai[] = {
 	{
 		.name = "ES8336 HIFI",
 		.stream_name = "ES8336 HIFI",
-		.cpu_dai_name = "phytium-i2s-lsd",
-		.codec_dai_name = "es8336-hifi",
-		.platform_name = "snd-soc-dummy",
-		.codec_name = "i2c-ESSX8336:00",
 		.dai_fmt = PMDK_DAI_FMT,
+		SND_SOC_DAILINK_REG(hifi),
 	},
 };
 
