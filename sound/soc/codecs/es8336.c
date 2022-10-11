@@ -30,15 +30,11 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <linux/proc_fs.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/regmap.h>
 #include "es8336.h"
-
-#define INVALID_GPIO -1
-#define GPIO_LOW  0
-#define GPIO_HIGH 1
 
 static struct snd_soc_component *es8336_component;
 
@@ -74,14 +70,12 @@ struct es8336_priv {
 	struct snd_pcm_hw_constraint_list *sysclk_constraints;
 	struct clk *mclk;
 	int debounce_time;
-	int hp_det_invert;
 	struct delayed_work work;
 
-	int spk_ctl_gpio;
-	int hp_det_gpio;
+	struct gpio_desc * spk_ctl_gpio;
+	struct gpio_desc * hp_det_gpio;
 	bool muted;
 	bool hp_inserted;
-	bool spk_active_level;
 
 	int pwr_count;
 };
@@ -100,10 +94,7 @@ static int es8336_reset(struct snd_soc_component *component)
 
 static void es8336_enable_spk(struct es8336_priv *es8336, bool enable)
 {
-	bool level;
-
-	level = enable ? es8336->spk_active_level : !es8336->spk_active_level;
-	gpio_set_value(es8336->spk_ctl_gpio, level);
+	gpiod_set_value(es8336->spk_ctl_gpio, enable);
 }
 
 static const DECLARE_TLV_DB_SCALE(dac_vol_tlv, -9600, 50, 1);
@@ -881,14 +872,10 @@ static irqreturn_t es8336_irq_handler(int irq, void *data)
 static void hp_work(struct work_struct *work)
 {
 	struct es8336_priv *es8336;
-	int enable;
 
 	es8336 = container_of(work, struct es8336_priv, work.work);
-	enable = gpio_get_value(es8336->hp_det_gpio);
-	if (es8336->hp_det_invert)
-		enable = !enable;
 
-	es8336->hp_inserted = enable ? true : false;
+	es8336->hp_inserted = gpiod_get_value(es8336->hp_det_gpio);
 	if (!es8336->muted) {
 		if (es8336->hp_inserted)
 			es8336_enable_spk(es8336, false);
@@ -970,7 +957,6 @@ static int es8336_i2c_probe(struct i2c_client *i2c,
 			    const struct i2c_device_id *id)
 {
 	struct es8336_priv *es8336;
-	struct gpio_desc *gpiod;
 	int ret = -1;
 	int hp_irq;
 
@@ -979,7 +965,6 @@ static int es8336_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	es8336->debounce_time = 200;
-	es8336->hp_det_invert = 0;
 	es8336->pwr_count = 0;
 	es8336->hp_inserted = false;
 	es8336->muted = true;
@@ -993,29 +978,23 @@ static int es8336_i2c_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, es8336);
 
-	gpiod = devm_gpiod_get_index_optional(&i2c->dev, "sel", 0,
+	es8336->spk_ctl_gpio = devm_gpiod_get_index_optional(&i2c->dev, "sel", 0,
 							GPIOD_OUT_HIGH);
 
-	if (!gpiod) {
+	if (!es8336->spk_ctl_gpio) {
 		dev_info(&i2c->dev, "Can not get spk_ctl_gpio\n");
-		es8336->spk_ctl_gpio = INVALID_GPIO;
 	} else {
-		es8336->spk_ctl_gpio = desc_to_gpio(gpiod);
-		es8336->spk_active_level = 0;
 		es8336_enable_spk(es8336, false);
 	}
 
-	gpiod = devm_gpiod_get_index_optional(&i2c->dev, "det", 0,
+	es8336->hp_det_gpio = devm_gpiod_get_index_optional(&i2c->dev, "det", 0,
 							GPIOD_IN);
 
-	if (!gpiod) {
+	if (!es8336->hp_det_gpio) {
 		dev_info(&i2c->dev, "Can not get hp_det_gpio\n");
-		es8336->hp_det_gpio = INVALID_GPIO;
 	} else {
-		es8336->hp_det_gpio = desc_to_gpio(gpiod);
 		INIT_DELAYED_WORK(&es8336->work, hp_work);
-		es8336->hp_det_invert = 0;
-		hp_irq = gpio_to_irq(es8336->hp_det_gpio);
+		hp_irq = gpiod_to_irq(es8336->hp_det_gpio);
 		ret = devm_request_threaded_irq(&i2c->dev, hp_irq, NULL,
 						es8336_irq_handler,
 						IRQF_TRIGGER_FALLING |
