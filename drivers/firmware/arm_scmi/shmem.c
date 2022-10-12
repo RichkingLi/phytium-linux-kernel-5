@@ -32,6 +32,14 @@ struct scmi_shared_mem {
 void shmem_tx_prepare(struct scmi_shared_mem __iomem *shmem,
 		      struct scmi_xfer *xfer)
 {
+#ifdef CONFIG_ARCH_PHYTIUM
+	/* callee not set cahnnel free when init, caller set it */
+	static int is_init = 0;
+	if(unlikely(is_init == 0)) {
+		iowrite32(0x1, &shmem->channel_status);
+		is_init = 1;
+	}
+#endif
 	/*
 	 * Ideally channel must be free by now unless OS timeout last
 	 * request and platform continued to process the same, wait
