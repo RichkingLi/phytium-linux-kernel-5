@@ -21,7 +21,7 @@ config CRYPTO_DEV_PADLOCK
 	  (so called VIA PadLock ACE, Advanced Cryptography Engine)
 	  that provides instructions for very fast cryptographic
 	  operations with supported algorithms.
-	  
+
 	  The instructions are used only when the CPU supports them.
 	  Otherwise software encryption is used.
 
@@ -883,6 +883,8 @@ config CRYPTO_DEV_CCREE
 source "drivers/crypto/hisilicon/Kconfig"
 
 source "drivers/crypto/amlogic/Kconfig"
+
+source "drivers/crypto/te/Kconfig"
 
 config CRYPTO_DEV_SA2UL
 	tristate "Support for TI security accelerator"
