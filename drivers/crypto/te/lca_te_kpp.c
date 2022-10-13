@@ -267,7 +267,7 @@ static void te_ecdh_gen_pubkey_complete(struct te_async_request *te_req, int err
 
 finish:
 	err = rc;
-	kzfree(pubkey);
+	kfree_sensitive(pubkey);
 fail:
 	kpp_request_complete(req, err);
 }
@@ -325,7 +325,7 @@ static void te_ecdh_compute_shared_secret_complete(
 		err = -EINVAL;
 
 finish:
-	kzfree(secret);
+	kfree_sensitive(secret);
 fail:
 	kpp_request_complete(req, err);
 }
@@ -449,7 +449,7 @@ static void te_dh_gen_pubkey_complete(struct te_async_request *te_req, int err)
 finish:
 	err = rc;
 	if(pubkey)
-		kzfree(pubkey);
+		kfree_sensitive(pubkey);
 fail:
 	kpp_request_complete(req, err);
 }
@@ -518,7 +518,7 @@ static void te_dh_compute_shared_secret_complete(
 	if (copied != secret_sz)
 		err = -EINVAL;
 finish:
-	kzfree(secret);
+	kfree_sensitive(secret);
 fail:
 	kpp_request_complete(req, err);
 }

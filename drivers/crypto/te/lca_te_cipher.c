@@ -185,7 +185,6 @@ static int lca_te_cipher_setkey(struct crypto_skcipher *sktfm, const u8 *key,
 			    unsigned int keylen)
 {
 	int rc;
-	u32 tmp[DES_EXPKEY_WORDS];
 	const u32 *K = (const u32 *)key;
 	struct crypto_tfm *tfm = crypto_skcipher_tfm(sktfm);
 	struct lca_te_cipher_ctx *ctx_p = crypto_tfm_ctx(tfm);
@@ -194,17 +193,16 @@ static int lca_te_cipher_setkey(struct crypto_skcipher *sktfm, const u8 *key,
 	 * des_generic.c
 	 * */
 	if(TE_ALG_GET_MAIN_ALG(ctx_p->alg) == TE_MAIN_ALGO_DES) {
-			rc = des_ekey(tmp, key);
-		if (rc == 0 && (tfm->crt_flags & CRYPTO_TFM_REQ_WEAK_KEY)) {
-			tfm->crt_flags |= CRYPTO_TFM_RES_WEAK_KEY;
+		struct des_ctx tmp_dctx;
+		rc = des_expand_key(&tmp_dctx, key, keylen);
+		if (rc == -ENOKEY && (tfm->crt_flags & CRYPTO_TFM_REQ_FORBID_WEAK_KEYS)) {
 			return -EINVAL;
 		}
 	}
 	if(TE_ALG_GET_MAIN_ALG(ctx_p->alg) == TE_MAIN_ALGO_TDES) {
 		if (unlikely(!((K[0] ^ K[2]) | (K[1] ^ K[3])) ||
 		     !((K[2] ^ K[4]) | (K[3] ^ K[5]))) &&
-				(tfm->crt_flags & CRYPTO_TFM_REQ_WEAK_KEY)) {
-			tfm->crt_flags |= CRYPTO_TFM_RES_WEAK_KEY;
+				(tfm->crt_flags & CRYPTO_TFM_REQ_FORBID_WEAK_KEYS)) {
 			return -EINVAL;
 		}
 	}

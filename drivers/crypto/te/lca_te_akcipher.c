@@ -173,7 +173,7 @@ static void te_akcipher_complete(struct te_async_request *te_req, int err)
 	if(areq_ctx->enc) {
 		req->dst_len = areq_ctx->rsa.public_args.size;
 		if(areq_ctx->buf) {
-			kzfree(areq_ctx->buf);
+			kfree_sensitive(areq_ctx->buf);
 			areq_ctx->buf = NULL;
 			areq_ctx->buflen = 0;
 		}
@@ -219,7 +219,7 @@ static int te_rsa_encrypt(struct akcipher_request *req)
 	areq_ctx->enc = true;
 	rc = te_rsa_public_async(&areq_ctx->rsa);
 	if(rc) {
-		kzfree(areq_ctx->buf);
+		kfree_sensitive(areq_ctx->buf);
 		areq_ctx->buf = NULL;
 		areq_ctx->buflen = 0;
 	}
