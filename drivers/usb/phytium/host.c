@@ -22,7 +22,6 @@
 #define HOST_ESHUTDOWN	4
 
 #define HOST_EP_NUM	16
-#define MAX_INSTANCE_EP_NUM 6
 
 static inline struct HOST_REQ *getUsbRequestEntry(struct list_head *list)
 {
@@ -711,6 +710,7 @@ static void hostStartReq(struct HOST_CTRL *priv, struct HOST_REQ *req)
 	struct HOST_EP_PRIV *hostNewEpPriv;
 	struct HOST_REQ *usbReq = NULL;
 	struct HostEp *hwEp = NULL;
+	int num;
 
 	if (!priv || !req)
 		return;
@@ -752,10 +752,11 @@ static void hostStartReq(struct HOST_CTRL *priv, struct HOST_REQ *req)
 				if (hostEpPriv->genericHwEp->scheduledUsbHEp)
 					return;
 
+				num = req->epNum - 1;
 				if (hostEpPriv->isIn)
-					hostNewEpPriv = getIntTransfer(&priv->intInHEpQueue);
+					hostNewEpPriv = getIntTransfer(&priv->intInHEpQueue[num]);
 				else
-					hostNewEpPriv = getIntTransfer(&priv->intOutHEpQueue);
+					hostNewEpPriv = getIntTransfer(&priv->intOutHEpQueue[num]);
 
 				hostNewEpPriv->currentHwEp = hostEpPriv->genericHwEp;
 				hostEpPriv->genericHwEp->scheduledUsbHEp = hostNewEpPriv->usbHEp;
@@ -1047,9 +1048,9 @@ static int32_t hostEpXIrq(struct HOST_CTRL *priv, uint8_t hwEpNum, uint8_t isIn)
 
 	if (usbHEpPriv->type == USB_ENDPOINT_XFER_INT) {
 		if (usbHEpPriv->isIn)
-			updateTimeIntTransfer(&priv->intInHEpQueue, usbHEpPriv);
+			updateTimeIntTransfer(&priv->intInHEpQueue[hwEp->hwEpNum - 1], usbHEpPriv);
 		else
-			updateTimeIntTransfer(&priv->intOutHEpQueue, usbHEpPriv);
+			updateTimeIntTransfer(&priv->intOutHEpQueue[hwEp->hwEpNum - 1], usbHEpPriv);
 	}
 
 	scheduleNextTransfer(priv, usbReq, hwEp);
@@ -1658,6 +1659,7 @@ static uint32_t initEndpoints(struct HOST_CTRL *priv)
 						priv->hostCfg.epIN[epNum].startBuf);
 				phytium_write8(&priv->regs->ep[epNum - 1].rxcon, 0x08);
 				phytium_write8(&priv->regs->fifoctrl, FIFOCTRL_FIFOAUTO | epNum);
+				phytium_write8(&priv->regs->irqmode[epNum - 1].inirqmode, 0x80);
 			}
 		} else
 			priv->in[epNum].state = HOST_EP_NOT_IMPLEMENTED;
@@ -1677,6 +1679,7 @@ static uint32_t initEndpoints(struct HOST_CTRL *priv)
 				phytium_write8(&priv->regs->ep[epNum - 1].txcon, 0x08);
 				phytium_write8(&priv->regs->fifoctrl,
 						FIFOCTRL_FIFOAUTO | FIFOCTRL_IO_TX | epNum);
+				phytium_write8(&priv->regs->irqmode[epNum - 1].outirqmode, 0x80);
 			}
 		} else
 			priv->out[epNum].state = HOST_EP_NOT_IMPLEMENTED;
@@ -1688,6 +1691,8 @@ static uint32_t initEndpoints(struct HOST_CTRL *priv)
 int32_t hostInit(struct HOST_CTRL *priv, struct HOST_CFG *config,
 		struct HOST_CALLBACKS *callbacks, struct device *pdev, bool isVhubHost)
 {
+	int index;
+
 	if (!config || !priv || !callbacks || !pdev)
 		return -EINVAL;
 
@@ -1710,12 +1715,15 @@ int32_t hostInit(struct HOST_CTRL *priv, struct HOST_CFG *config,
 	priv->dmaDrv->dma_setParentPriv(priv->dmaController, priv);
 
 	INIT_LIST_HEAD(&priv->ctrlHEpQueue);
-	INIT_LIST_HEAD(&priv->isoInHEpQueue);
-	INIT_LIST_HEAD(&priv->isoOutHEpQueue);
-	INIT_LIST_HEAD(&priv->intInHEpQueue);
-	INIT_LIST_HEAD(&priv->intOutHEpQueue);
-	INIT_LIST_HEAD(&priv->bulkInHEpQueue);
-	INIT_LIST_HEAD(&priv->bulkOutHEpQueue);
+
+	for (index = 0; index < MAX_INSTANCE_EP_NUM; index++) {
+		INIT_LIST_HEAD(&priv->isoInHEpQueue[index]);
+		INIT_LIST_HEAD(&priv->isoOutHEpQueue[index]);
+		INIT_LIST_HEAD(&priv->intInHEpQueue[index]);
+		INIT_LIST_HEAD(&priv->intOutHEpQueue[index]);
+		INIT_LIST_HEAD(&priv->bulkInHEpQueue[index]);
+		INIT_LIST_HEAD(&priv->bulkOutHEpQueue[index]);
+	}
 
 	phytium_write8(&priv->regs->cpuctrl, BIT(1));
 	phytium_write8(&priv->regs->otgctrl, OTGCTRL_ABUSDROP);
@@ -1918,7 +1926,8 @@ int32_t hostReqQueue(struct HOST_CTRL *priv, struct HOST_REQ *req)
 		hostEpPriv->type = USB_ENDPOINT_XFER_CONTROL;
 		break;
 	case USB_ENDPOINT_XFER_BULK:
-		hEpQueue = hostEpPriv->isIn ? &priv->bulkInHEpQueue : &priv->bulkOutHEpQueue;
+		hEpQueue = hostEpPriv->isIn ? &priv->bulkInHEpQueue[req->epNum - 1] :
+			&priv->bulkOutHEpQueue[req->epNum - 1];
 		hostEpPriv->type = USB_ENDPOINT_XFER_BULK;
 		break;
 	case USB_ENDPOINT_XFER_INT:
@@ -1935,7 +1944,8 @@ int32_t hostReqQueue(struct HOST_CTRL *priv, struct HOST_REQ *req)
 
 			interval = 1 << (interval - 1);
 		}
-		hEpQueue = hostEpPriv->isIn ? &priv->intInHEpQueue : &priv->intOutHEpQueue;
+		hEpQueue = hostEpPriv->isIn ? &priv->intInHEpQueue[req->epNum - 1] :
+			&priv->intOutHEpQueue[req->epNum - 1];
 		hostEpPriv->type = USB_ENDPOINT_XFER_INT;
 		hostEpPriv->frame = interval;
 		hostEpPriv->interval = interval;
@@ -1949,7 +1959,8 @@ int32_t hostReqQueue(struct HOST_CTRL *priv, struct HOST_REQ *req)
 			interval = req->usbEp->desc.bInterval;
 
 		interval = 1 << (interval - 1);
-		hEpQueue = hostEpPriv->isIn ? &priv->isoInHEpQueue : &priv->isoOutHEpQueue;
+		hEpQueue = hostEpPriv->isIn ? &priv->isoInHEpQueue[req->epNum - 1] :
+			&priv->isoOutHEpQueue[req->epNum - 1];
 		hostEpPriv->type = USB_ENDPOINT_XFER_ISOC;
 		hostEpPriv->frame = interval;
 		hostEpPriv->interval = interval;

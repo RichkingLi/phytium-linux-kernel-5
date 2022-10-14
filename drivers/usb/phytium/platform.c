@@ -145,11 +145,6 @@ static int phytium_driver_remove(struct platform_device *dev)
 			config->dr_mode == USB_DR_MODE_OTG)
 		phytium_gadget_uninit(config);
 
-	if (config->irq > 0) {
-		free_irq(config->irq, config);
-		config->irq = 0;
-	}
-
 	dev_set_drvdata(&dev->dev, NULL);
 	return 0;
 }

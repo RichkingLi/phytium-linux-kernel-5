@@ -9,6 +9,7 @@
 
 #define MAX_SUPPORTED_DEVICES 16
 #define USB_PORT_STAT_RESUME (1 << 31)
+#define MAX_INSTANCE_EP_NUM 6
 
 enum HOST_OtgState {
 	HOST_OTG_STATE_A_IDLE,
@@ -217,12 +218,12 @@ struct HOST_CTRL {
 	struct HostEp out[16];
 	uint32_t portStatus;
 	struct list_head ctrlHEpQueue;
-	struct list_head isoInHEpQueue;
-	struct list_head isoOutHEpQueue;
-	struct list_head intInHEpQueue;
-	struct list_head intOutHEpQueue;
-	struct list_head bulkInHEpQueue;
-	struct list_head bulkOutHEpQueue;
+	struct list_head isoInHEpQueue[MAX_INSTANCE_EP_NUM];
+	struct list_head isoOutHEpQueue[MAX_INSTANCE_EP_NUM];
+	struct list_head intInHEpQueue[MAX_INSTANCE_EP_NUM];
+	struct list_head intOutHEpQueue[MAX_INSTANCE_EP_NUM];
+	struct list_head bulkInHEpQueue[MAX_INSTANCE_EP_NUM];
+	struct list_head bulkOutHEpQueue[MAX_INSTANCE_EP_NUM];
 	uint8_t hwEpInCount;
 	uint8_t hwEpOutCount;
 	unsigned int speed;

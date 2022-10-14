@@ -226,7 +226,13 @@ struct HW_REGS {
 		uint16_t addr;
 		uint16_t reserved;
 	} txstaddr[15];
-	int8_t reserved16[64];
+	int8_t reserved16[4];	/*address 0x380*/
+	struct irqmode {	/*address 0x384*/
+		int8_t inirqmode;
+		int8_t reserved21;
+		int8_t outirqmode;
+		int8_t reserved22;
+	} irqmode[15];
 	/*The Microprocessor control*/
 	uint8_t cpuctrl;         /*address 0x3C0*/
 	int8_t reserved17[15];
