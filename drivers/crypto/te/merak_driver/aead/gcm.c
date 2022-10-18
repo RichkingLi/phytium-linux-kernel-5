@@ -42,11 +42,12 @@
             }                                                                  \
         } while (0)
 
+/* FF FF ... FF FF + 1 ==> 00 00 ... 00 00, need set c[0], so change _j >= 0 */
 #define COUNTER_INCREASE(c, l, delta)                                          \
                 do {                                                           \
                     size_t _i = 0, _j = 0;                                     \
                     for (_i = 0; _i < (delta); _i++) {                         \
-                        for(_j = (l) - 1; _j > 0; _j--) {                      \
+                        for(_j = (l) - 1; _j >= 0; _j--) {                      \
                             if (0 != ++((c)[_j])) {                            \
                                 break;                                         \
                             }                                                  \
