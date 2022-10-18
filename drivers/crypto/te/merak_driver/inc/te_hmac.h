@@ -148,6 +148,8 @@ int te_hmac_reset( te_hmac_ctx_t *ctx );
  */
 int te_hmac_clone( te_hmac_ctx_t *src, te_hmac_ctx_t *dst);
 
+int te_hmac_statesize(te_hmac_ctx_t *ctx);
+
 /**
  * \brief           This function exports partial state of the calculation.
  *                  This function dumps the entire state of the specified con-

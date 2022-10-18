@@ -300,6 +300,8 @@ int te_sca_finish( te_crypt_ctx_t *ctx,
 int te_sca_clone( const te_crypt_ctx_t *src,
                   te_crypt_ctx_t *dst );
 
+int te_sca_statesize(te_crypt_drv_t *drv);
+
 /**
  * \brief           This function exports partial state of the calculation.
  *                  This function dumps the entire state of the specified con-

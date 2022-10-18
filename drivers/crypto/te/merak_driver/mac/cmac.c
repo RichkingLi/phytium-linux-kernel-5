@@ -809,6 +809,11 @@ int te_cmac_clone( const te_cmac_ctx_t *src,
     return TE_SUCCESS;
 }
 
+int te_cmac_statesize(te_cmac_ctx_t *ctx)
+{
+	return sizeof(cmac_ehdr_t) + te_sca_statesize(ctx->crypt->drv);
+}
+
 int te_cmac_export( te_cmac_ctx_t *ctx,
                     void *out,
                     uint32_t *olen )

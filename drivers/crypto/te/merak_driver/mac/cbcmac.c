@@ -520,6 +520,11 @@ int te_cbcmac_clone( const te_cbcmac_ctx_t *src,
     return TE_SUCCESS;
 }
 
+int te_cbcmac_statesize(te_cbcmac_ctx_t *ctx)
+{
+	return sizeof(cbcmac_ehdr_t) + te_sca_statesize(ctx->crypt->drv);
+}
+
 int te_cbcmac_export( te_cbcmac_ctx_t *ctx,
                       void *out,
                       uint32_t *olen )

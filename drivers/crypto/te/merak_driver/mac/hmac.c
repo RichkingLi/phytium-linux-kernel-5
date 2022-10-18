@@ -473,6 +473,11 @@ __out__:
     return ret;
 }
 
+int te_hmac_statesize(te_hmac_ctx_t *ctx)
+{
+	return sizeof(hmac_ehdr_t) + te_hash_statesize(ctx->crypt->drv);
+}
+
 int te_hmac_export( te_hmac_ctx_t *ctx,
                       void *out,
                       uint32_t *olen )

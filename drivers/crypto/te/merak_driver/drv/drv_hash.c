@@ -1342,6 +1342,14 @@ int te_hash_clone( const te_crypt_ctx_t *src,
     return TE_SUCCESS;
 }
 
+int te_hash_statesize(te_crypt_drv_t *drv)
+{
+	te_hash_drv_t *hdrv = NULL;
+	TE_ASSERT( drv != NULL );
+	hdrv = (te_hash_drv_t *)drv;
+	return sizeof(hash_ehdr_t) + te_sess_statesize(hdrv->sctx);
+}
+
 int te_hash_export( te_crypt_ctx_t *ctx,
                     void *out,
                     uint32_t *olen )

@@ -161,6 +161,8 @@ int te_sess_submit( te_sess_id_t sid, const uint32_t *cmdptr, uint32_t len );
  */
 int te_sess_asubmit( te_sess_id_t sid, struct te_sess_ar *ar );
 
+int te_sess_statesize(void *mctx);
+
 /**
  * \brief           This function exports partial state of the session. This
  *                  function dumps the entire hw state of the specified session

@@ -171,6 +171,9 @@ int te_cmac_reset( te_cmac_ctx_t *ctx );
 int te_cmac_clone( const te_cmac_ctx_t *src,
                    te_cmac_ctx_t *dst );
 
+
+int te_cmac_statesize(te_cmac_ctx_t *ctx);
+
 /**
  * \brief           This function exports partial state of the calculation.
  *                  This function dumps the entire state of the specified con-
@@ -340,6 +343,8 @@ int te_cbcmac_reset( te_cbcmac_ctx_t *ctx );
  */
 int te_cbcmac_clone( const te_cbcmac_ctx_t *src,
                      te_cbcmac_ctx_t *dst );
+
+int te_cbcmac_statesize(te_cbcmac_ctx_t *ctx);
 
 /**
  * \brief           This function exports partial state of the calculation.

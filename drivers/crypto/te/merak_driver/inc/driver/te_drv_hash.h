@@ -254,6 +254,8 @@ int te_hash_reset( te_crypt_ctx_t *ctx );
 int te_hash_clone( const te_crypt_ctx_t *src,
                    te_crypt_ctx_t *dst );
 
+int te_hash_statesize(te_crypt_drv_t *drv);
+
 /**
  * \brief           This function exports partial state of the calculation.
  *                  This function dumps the entire state of the specified con-

@@ -133,9 +133,15 @@ struct te_ahash_req_ctx {
 };
 #endif
 
+
+/* state size should be update when algo registed not ahash init,
+   kernel may use statesize to malloc export buffer when algo
+   is not do ahash init just registed. If state size changed,
+   it may cause memory over run.                                 */
 static int lca_te_hash_cra_init(struct crypto_tfm *tfm)
 {
 	int rc=0;
+	uint32_t len = 0;
 	struct te_hash_ctx *ctx = crypto_tfm_ctx(tfm);
 #ifdef CFG_TE_ASYNC_EN
 	struct hash_alg_common *hash_alg_common =
@@ -170,22 +176,28 @@ static int lca_te_hash_cra_init(struct crypto_tfm *tfm)
 	case LCA_TE_ALG_MAIN_HASH:
 		if (ctx->is_hmac) {
 			rc = te_hmac_init(&ctx->hctx, ctx->drvdata->h, ctx->alg);
+			len = te_hmac_statesize(&ctx->hctx);
 		} else {
 			rc = te_dgst_init(&ctx->dctx, ctx->drvdata->h, ctx->alg);
+			len = te_hash_statesize(ctx->dctx.crypt->drv);
 		}
 		break;
 	case LCA_TE_ALG_MAIN_CMAC:
 		rc = te_cmac_init(&ctx->cctx, ctx->drvdata->h,
 				_LCA_CMAC_GET_MAIN_ALG(ctx->alg));
+		len = te_cmac_statesize(&ctx->cctx);
 		break;
 	case LCA_TE_ALG_MAIN_CBCMAC:
 		rc = te_cbcmac_init(&ctx->cbctx, ctx->drvdata->h,
 				_LCA_CBCMAC_GET_MAIN_ALG(ctx->alg));
+		len = te_cbcmac_statesize(&ctx->cbctx);
 		break;
 	case LCA_TE_ALG_MAIN_INVALID:
 	default:
 		dev_err(dev, "Unsupported algo (0x%x)\n", ctx->alg);
 	}
+
+	__crypto_hash_alg_common(tfm->__crt_alg)->statesize = len;
 
 	return 0;
 }
@@ -409,8 +421,6 @@ static int lca_te_ahash_digest(struct ahash_request *req)
 
 static void te_ahash_init_complete(struct te_async_request *te_req, int err)
 {
-    int rc = -1;
-    uint32_t len = 0;
 	struct ahash_request *req = (struct ahash_request *)te_req->data;
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
 	struct te_hash_ctx *ctx = crypto_ahash_ctx(tfm);
@@ -420,34 +430,24 @@ static void te_ahash_init_complete(struct te_async_request *te_req, int err)
 	switch (_LCA_GET_MAIN_MODE(ctx->alg)) {
 	case LCA_TE_ALG_MAIN_HASH:
 		if (ctx->is_hmac) {
-            rc = te_hmac_export(&ctx->hctx, NULL, &len);
 			kfree(areq_ctx->init.hmac_req);
 			areq_ctx->init.hmac_req = NULL;
 		} else {
-            rc = te_dgst_export(&ctx->dctx, NULL, &len);
 			kfree(areq_ctx->init.dgst_req);
 			areq_ctx->init.dgst_req = NULL;
 		}
 		break;
 	case LCA_TE_ALG_MAIN_CMAC:
-        rc = te_cmac_export(&ctx->cctx, NULL, &len);
 		kfree(areq_ctx->init.cmac_req);
 		areq_ctx->init.cmac_req = NULL;
         break;
 	case LCA_TE_ALG_MAIN_CBCMAC:
-        rc = te_cbcmac_export(&ctx->cbctx, NULL, &len);
 		kfree(areq_ctx->init.cmac_req);
 		areq_ctx->init.cmac_req = NULL;
 		break;
 	case LCA_TE_ALG_MAIN_INVALID:
 	default:
 		dev_err(dev, "Unsupported algo (0x%x)\n", ctx->alg);
-	}
-
-    if (rc == TE_ERROR_SHORT_BUFFER) {
-        crypto_hash_alg_common(tfm)->statesize = len;
-	} else {
-        crypto_hash_alg_common(tfm)->statesize = 0;
 	}
 
 	ahash_request_complete(req, err);

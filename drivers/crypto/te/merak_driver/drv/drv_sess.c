@@ -1083,6 +1083,11 @@ finish:
     return ret;
 }
 
+int te_sess_statesize(void *mctx)
+{
+	return ((te_sess_module_ctx_t *)mctx)->hwctx_sz;
+}
+
 /*
  * The idea to export the hwctx of the slot of the calling session outside:
  * 1. lock out the session, to stop accepting new commands.

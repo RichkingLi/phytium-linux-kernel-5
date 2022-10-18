@@ -2072,6 +2072,14 @@ err:
     return ret;
 }
 
+int te_sca_statesize(te_crypt_drv_t *drv)
+{
+	te_sca_drv_t *sdrv = NULL;
+	TE_ASSERT( drv != NULL );
+	sdrv = (te_sca_drv_t *)drv;
+	return sizeof(sca_ehdr_t) + te_sess_statesize(sdrv->sctx);
+}
+
 int te_sca_export( te_crypt_ctx_t *ctx,
                    void *out,
                    uint32_t *olen )
