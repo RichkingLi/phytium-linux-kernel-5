@@ -38,9 +38,9 @@
 	firmware {
 		scmi: scmi {
 			compatible = "arm,scmi";
-			mboxes = <&mbox 0 &mbox 1>;
-			mbox-names = "tx", "rx";
-			shmem = <&cpu_scp_hpri &cpu_scp_lpri>;
+			mboxes = <&mbox 0>;
+			mbox-names = "tx";
+			shmem = <&cpu_scp_hpri>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 
