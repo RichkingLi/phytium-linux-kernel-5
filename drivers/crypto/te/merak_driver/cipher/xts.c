@@ -139,6 +139,7 @@ int te_xts_setkey( te_xts_ctx_t *ctx,
                    uint32_t keybits )
 {
 #define CIPHER_KEY_BITS_128        (128U)
+#define CIPHER_KEY_BITS_192        (192U)
 #define CIPHER_KEY_BITS_256        (256U)
 #define KEY_LEN(_bits_)  ((_bits_) / 8)
     int ret = 0;
@@ -152,6 +153,7 @@ int te_xts_setkey( te_xts_ctx_t *ctx,
     switch (TE_ALG_GET_MAIN_ALG(ctx->crypt->alg)) {
         case TE_MAIN_ALGO_AES:
             if(((CIPHER_KEY_BITS_128*2) != keybits)
+                && ((CIPHER_KEY_BITS_192*2) != keybits)
                 && ((CIPHER_KEY_BITS_256*2) != keybits)){
                 ret = TE_ERROR_BAD_KEY_LENGTH;
                 __XTS_OUT__;

@@ -757,7 +757,7 @@ static int _sanity_check_sca_user_key(te_crypt_ctx_t *ctx,
     case TE_MAIN_ALGO_AES:
         if( ((SCA_KEY_BITS_128 == key->keybits)
             || ((SCA_KEY_BITS_192 == key->keybits)
-                 && (TE_CHAIN_MODE_XTS != TE_ALG_GET_CHAIN_MODE(ctx->alg)))
+                 /*&& (TE_CHAIN_MODE_XTS != TE_ALG_GET_CHAIN_MODE(ctx->alg))*/)
             || (SCA_KEY_BITS_256 == key->keybits)) ){
               ret = TE_SUCCESS;
           } else {
@@ -886,7 +886,6 @@ int te_sca_setkey( te_crypt_ctx_t *ctx, te_sca_key_t *key )
         ret = TE_ERROR_BAD_PARAMS;
         _SCA_DRV_OUT_;
     }
-
     drv_ctx = (sca_drv_ctx_t *)ctx;
     TE_ASSERT_MSG( drv_ctx->magic == SCA_CTX_MAGIC,
                 "fatal error: Not valid SCA driver context\n" );
