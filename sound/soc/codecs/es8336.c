@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * es8336.c -- es8336 ALSA SoC audio driver
  * Copyright Everest Semiconductor Co.,Ltd
@@ -72,11 +73,12 @@ struct es8336_priv {
 	int debounce_time;
 	struct delayed_work work;
 
-	struct gpio_desc * spk_ctl_gpio;
-	struct gpio_desc * hp_det_gpio;
+	struct gpio_desc *spk_ctl_gpio;
+	struct gpio_desc *hp_det_gpio;
 	bool muted;
 	bool hp_inserted;
 
+	u8 mic_src;
 	int pwr_count;
 };
 
@@ -175,8 +177,8 @@ static const struct snd_kcontrol_new es8336_snd_controls[] = {
 static const char * const es8336_analog_in_txt[] = {
 	"lin1-rin1",
 	"lin2-rin2",
-	"lin1-rin1 with 20db Boost",
-	"lin2-rin2 with 20db Boost"
+	"lin1-rin1 with 15db Boost",
+	"lin2-rin2 with 15db Boost"
 };
 
 static const unsigned int es8336_analog_in_values[] = { 0, 1, 2, 3 };
@@ -292,7 +294,7 @@ static const struct snd_soc_dapm_widget es8336_dapm_widgets[] = {
 			 &es8336_dmic_src_controls),
 
 	/* Digital Interface */
-	SND_SOC_DAPM_AIF_OUT("I2S OUT", "I2S1 Capture",  0,
+	SND_SOC_DAPM_AIF_OUT("I2S OUT", "I2S1 Capture",  1,
 			     SND_SOC_NOPM, 0, 0),
 
 	SND_SOC_DAPM_AIF_IN("I2S IN", "I2S1 Playback", 0,
@@ -351,8 +353,8 @@ static const struct snd_soc_dapm_route es8336_dapm_routes[] = {
 
 	{"Differential Mux", "lin1-rin1", "MIC1"},
 	{"Differential Mux", "lin2-rin2", "MIC2"},
-	{"Differential Mux", "lin1-rin1 with 20db Boost", "MIC1"},
-	{"Differential Mux", "lin2-rin2 with 20db Boost", "MIC2"},
+	{"Differential Mux", "lin1-rin1 with 15db Boost", "MIC1"},
+	{"Differential Mux", "lin2-rin2 with 15db Boost", "MIC2"},
 	{"Line input PGA", NULL, "Differential Mux"},
 
 	{"Mono ADC", NULL, "Line input PGA"},
@@ -585,6 +587,7 @@ static int es8336_pcm_startup(struct snd_pcm_substream *substream,
 				    ES8336_CLKMGR_DAC_ANALOG_EN);
 		msleep(50);
 	} else {
+		snd_soc_component_update_bits(component, ES8336_ADC_PDN_LINSEL_REG22, 0xC0, 0x00);
 		snd_soc_component_update_bits(component, ES8336_CLKMGR_CLKSW_REG01,
 				    ES8336_CLKMGR_ADC_MCLK_MASK |
 				    ES8336_CLKMGR_ADC_ANALOG_MASK,
@@ -618,6 +621,7 @@ static void es8336_pcm_shutdown(struct snd_pcm_substream *substream,
 				    ES8336_CLKMGR_DAC_ANALOG_MASK,
 				    ES8336_CLKMGR_DAC_ANALOG_DIS);
 	} else {
+		snd_soc_component_update_bits(component, ES8336_ADC_PDN_LINSEL_REG22, 0xC0, 0xc0);
 		snd_soc_component_update_bits(component, ES8336_CLKMGR_CLKSW_REG01,
 				    ES8336_CLKMGR_ADC_MCLK_MASK |
 				    ES8336_CLKMGR_ADC_ANALOG_MASK,
@@ -714,6 +718,7 @@ static int es8336_set_bias_level(struct snd_soc_component *component,
 		snd_soc_component_write(component, ES8336_HPMIX_SWITCH_REG14, 0x00);
 		snd_soc_component_write(component, ES8336_HPMIX_PDN_REG15, 0x33);
 		snd_soc_component_write(component, ES8336_HPMIX_VOL_REG16, 0x00);
+		snd_soc_component_update_bits(component, ES8336_ADC_PDN_LINSEL_REG22, 0xC0, 0xC0);
 		if (!es8336->hp_inserted)
 			snd_soc_component_write(component, ES8336_SYS_PDN_REG0D, 0x3F);
 		snd_soc_component_write(component, ES8336_SYS_LP1_REG0E, 0x3F);
@@ -761,6 +766,7 @@ static struct snd_soc_dai_driver es8336_dai = {
 
 static int es8336_init_regs(struct snd_soc_component *component)
 {
+	struct es8336_priv *es8336 = snd_soc_component_get_drvdata(component);
 	snd_soc_component_write(component, ES8336_RESET_REG00, 0x3f);
 	usleep_range(5000, 5500);
 	snd_soc_component_write(component, ES8336_RESET_REG00, 0x00);
@@ -779,7 +785,7 @@ static int es8336_init_regs(struct snd_soc_component *component)
 	snd_soc_component_write(component, ES8336_CAL_HPLIV_REG1E, 0x90);
 	snd_soc_component_write(component, ES8336_CAL_HPRIV_REG1F, 0x90);
 	snd_soc_component_write(component, ES8336_ADC_VOLUME_REG27, 0x00);
-	snd_soc_component_write(component, ES8336_ADC_PDN_LINSEL_REG22, 0xc0);
+	snd_soc_component_write(component, ES8336_ADC_PDN_LINSEL_REG22, es8336->mic_src);
 	snd_soc_component_write(component, ES8336_ADC_D2SEPGA_REG24, 0x00);
 	snd_soc_component_write(component, ES8336_ADC_DMIC_REG25, 0x08);
 	snd_soc_component_write(component, ES8336_DAC_SET2_REG31, 0x20);
@@ -854,7 +860,7 @@ static int es8336_resume(struct snd_soc_component *component)
 		snd_soc_component_write(component, ES8336_SYS_LP1_REG0E, 0xFF);
 		snd_soc_component_write(component, ES8336_SYS_LP2_REG0F, 0xFF);
 		snd_soc_component_write(component, ES8336_CLKMGR_CLKSW_REG01, 0xF3);
-		snd_soc_component_write(component, ES8336_ADC_PDN_LINSEL_REG22, 0xc0);
+		snd_soc_component_update_bits(component, ES8336_ADC_PDN_LINSEL_REG22, 0xC0, 0xC0);
 	}
 	return 0;
 }
@@ -916,8 +922,7 @@ static int es8336_probe(struct snd_soc_component *component)
 			snd_soc_component_write(component, ES8336_SYS_LP1_REG0E, 0xFF);
 			snd_soc_component_write(component, ES8336_SYS_LP2_REG0F, 0xFF);
 			snd_soc_component_write(component, ES8336_CLKMGR_CLKSW_REG01, 0xF3);
-			snd_soc_component_write(component,
-				      ES8336_ADC_PDN_LINSEL_REG22, 0xc0);
+			snd_soc_component_update_bits(component, ES8336_ADC_PDN_LINSEL_REG22, 0xC0, 0xC0);
 		}
 	}
 
@@ -980,12 +985,17 @@ static int es8336_i2c_probe(struct i2c_client *i2c,
 
 	es8336->spk_ctl_gpio = devm_gpiod_get_index_optional(&i2c->dev, "sel", 0,
 							GPIOD_OUT_HIGH);
-
-	if (!es8336->spk_ctl_gpio) {
-		dev_info(&i2c->dev, "Can not get spk_ctl_gpio\n");
-	} else {
-		es8336_enable_spk(es8336, false);
+	ret = of_property_read_u8(i2c->dev.of_node, "mic-src", &es8336->mic_src);
+	if (ret != 0) {
+		dev_dbg(&i2c->dev, "mic1-src return %d", ret);
+		es8336->mic_src = 0x20;
 	}
+	dev_dbg(&i2c->dev, "mic1-src %x", es8336->mic_src);
+
+	if (!es8336->spk_ctl_gpio)
+		dev_info(&i2c->dev, "Can not get spk_ctl_gpio\n");
+	else
+		es8336_enable_spk(es8336, false);
 
 	es8336->hp_det_gpio = devm_gpiod_get_index_optional(&i2c->dev, "det", 0,
 							GPIOD_IN);
