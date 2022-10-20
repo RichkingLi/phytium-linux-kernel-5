@@ -95,6 +95,7 @@ struct te_alg_template {
 	struct te_drvdata *drvdata;
 };
 
+int te_convert_retval_to_linux(int te_err);
 
 static inline struct device *drvdata_to_dev(struct te_drvdata *drvdata)
 {

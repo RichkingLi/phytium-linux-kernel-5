@@ -140,7 +140,7 @@ te_aead_setkey(struct crypto_aead *tfm, const u8 *key, unsigned int keylen)
 			TE_ALG_GET_CHAIN_MODE(ctx->alg));
 	}
 
-	return rc;
+	return te_convert_retval_to_linux(rc);
 }
 
 static int te_aead_setauthsize(
@@ -630,7 +630,7 @@ static struct te_crypto_alg *te_aead_create_alg(struct te_alg_template *tmpl)
 		 tmpl->driver_name);
 	alg->base.cra_module = THIS_MODULE;
 	alg->base.cra_priority = TE_CRA_PRIO;
-
+	alg->base.cra_blocksize = tmpl->blocksize;
 	alg->base.cra_ctxsize = sizeof(struct te_aead_ctx);
 	alg->base.cra_flags = CRYPTO_ALG_ASYNC | tmpl->type;
 	alg->init = te_aead_init;

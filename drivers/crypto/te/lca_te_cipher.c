@@ -177,26 +177,6 @@ static void lca_cipher_exit(struct crypto_tfm *tfm)
 	return;
 }
 
-static int _convert_retval_to_linux(int te_err)
-{
-	int errno;
-	switch (te_err) {
-		case TE_SUCCESS:
-			return 0;
-		case TE_ERROR_BAD_PARAMS:
-		case TE_ERROR_BAD_KEY_LENGTH:
-		case TE_ERROR_BAD_INPUT_LENGTH:
-			errno = -EINVAL;
-			break;
-		default:
-			errno = -EPERM;
-			break;
-	}
-	//pr_err("get te error:%x %d, return %d", te_err, te_err, errno);
-	return errno;
-}
-
-
 /* Block cipher alg */
 #ifdef CFG_TE_ASYNC_EN
 
@@ -231,7 +211,7 @@ static int lca_te_cipher_setkey(struct crypto_skcipher *sktfm, const u8 *key,
 		rc = te_cipher_setkey(&ctx_p->ctx, key, keylen*BITS_IN_BYTE);
 	}
 
-	return _convert_retval_to_linux(rc);
+	return te_convert_retval_to_linux(rc);
 }
 static void lca_te_cipher_complete(struct te_async_request *te_req, int err)
 {
@@ -273,7 +253,7 @@ static void lca_te_cipher_complete(struct te_async_request *te_req, int err)
 			req_ctx->dec.te_cipher = NULL;
 		}
 	}
-	skcipher_request_complete(req, _convert_retval_to_linux(err));
+	skcipher_request_complete(req, te_convert_retval_to_linux(err));
 }
 
 static int lca_te_cipher_encrypt(struct skcipher_request *req)
@@ -308,7 +288,7 @@ static int lca_te_cipher_encrypt(struct skcipher_request *req)
 		if (rc != TE_SUCCESS) {
 			kfree(req_ctx->enc.te_xts);
 			req_ctx->enc.te_xts = NULL;
-			return _convert_retval_to_linux(rc);
+			return te_convert_retval_to_linux(rc);
 		}
 		rc = te_buf_mgr_gen_memlist(req->dst, req->cryptlen, &req_ctx->enc.te_xts->te_xts_req.dst);
 		if (rc != TE_SUCCESS)
@@ -345,7 +325,7 @@ static int lca_te_cipher_encrypt(struct skcipher_request *req)
 		if (rc != TE_SUCCESS) {
 			kfree(req_ctx->enc.te_cipher);
 			req_ctx->enc.te_cipher = NULL;
-			return _convert_retval_to_linux(rc);
+			return te_convert_retval_to_linux(rc);
 		}
 		rc = te_buf_mgr_gen_memlist(req->dst, req->cryptlen, &req_ctx->enc.te_cipher->te_req.dst);
 		if (rc != TE_SUCCESS)
@@ -414,7 +394,7 @@ fail:
 		req_ctx->enc.te_cipher = NULL;
 	}
 
-	return _convert_retval_to_linux(rc);
+	return te_convert_retval_to_linux(rc);
 }
 
 
@@ -488,7 +468,7 @@ static int lca_te_cipher_decrypt(struct skcipher_request *req)
 		if (rc != TE_SUCCESS) {
 			kfree(req_ctx->dec.te_cipher);
 			req_ctx->dec.te_cipher = NULL;
-			return _convert_retval_to_linux(rc);
+			return te_convert_retval_to_linux(rc);
 		}
 		rc = te_buf_mgr_gen_memlist(req->dst, req->cryptlen, &req_ctx->dec.te_cipher->te_req.dst);
 		if (rc != TE_SUCCESS)
@@ -557,7 +537,7 @@ fail:
 		req_ctx->dec.te_cipher = NULL;
 	}
 
-	return _convert_retval_to_linux(rc);
+	return te_convert_retval_to_linux(rc);
 }
 
 

@@ -89,6 +89,25 @@ static const struct dev_pm_ops te_pm = {
 };
 #endif
 
+int te_convert_retval_to_linux(int te_err)
+{
+	int errno;
+	switch (te_err) {
+		case TE_SUCCESS:
+			return 0;
+		case TE_ERROR_BAD_PARAMS:
+		case TE_ERROR_BAD_KEY_LENGTH:
+		case TE_ERROR_BAD_INPUT_LENGTH:
+			errno = -EINVAL;
+			break;
+		default:
+			errno = -EPERM;
+			break;
+	}
+	//pr_err("get te error:%x %d, return %d", te_err, te_err, errno);
+	return errno;
+}
+
 static int init_te_resources(struct platform_device *plat_dev)
 {
 	struct resource *req_mem_te_regs = NULL;
