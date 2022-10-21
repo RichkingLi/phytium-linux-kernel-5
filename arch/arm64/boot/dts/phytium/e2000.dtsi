@@ -899,6 +899,16 @@
 			status = "disabled";
 		};
 
+        i2s_dp1: i2s_dp1@3200B000 {
+			compatible = "phytium,i2s";
+			reg = <0x0 0x3200B000 0x0 0x1000>,
+			      <0x0 0x3200A000 0x0 0x1000>;
+			interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&sysclk_600mhz>;
+			clock-names = "i2s_clk";
+			status = "disabled";
+		};
+
 		pmdk_dp: pmdk_dp {
 			compatible = "phytium,pmdk-dp";
 			status = "disabled";
