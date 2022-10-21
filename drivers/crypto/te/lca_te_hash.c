@@ -383,10 +383,10 @@ static int lca_te_ahash_digest(struct ahash_request *req)
 		areq_ctx->dgst.cmac_req->amac.key.type = TE_KEY_TYPE_USER;
 		areq_ctx->dgst.cmac_req->amac.key.user.key = ctx->mackey;
 		areq_ctx->dgst.cmac_req->amac.key.user.keybits = ctx->keylen*BITS_IN_BYTE;
-		if(req->nbytes%ctx->blocksize) {
+		if(req->nbytes%ctx->cbctx.crypt->blk_size) {
 			int padlen=0;
 
-			padlen = ctx->blocksize - (req->nbytes%ctx->blocksize);
+			padlen = ctx->cbctx.crypt->blk_size - (req->nbytes%ctx->cbctx.crypt->blk_size);
 			/*free old pad*/
 			if(ctx->pad)
 				kfree(ctx->pad);
@@ -763,10 +763,10 @@ static int lca_te_ahash_final(struct ahash_request *req)
 		rc = te_cmac_afinish(&ctx->cctx, areq_ctx->final.cmac_req);
 		return ((rc == TE_SUCCESS) ? (-EINPROGRESS):rc);
 	case LCA_TE_ALG_MAIN_CBCMAC:
-		if(ctx->datalen%ctx->blocksize) {
+		if(ctx->datalen%ctx->cbctx.crypt->blk_size) {
 			int padlen=0;
 
-			padlen = ctx->blocksize - (ctx->datalen%ctx->blocksize);
+			padlen = ctx->cbctx.crypt->blk_size - (ctx->datalen%ctx->cbctx.crypt->blk_size);
 			/*free old pad*/
 			if(ctx->pad)
 				kfree(ctx->pad);
@@ -1352,7 +1352,7 @@ static struct te_hash_template te_ahash_algs[] = {
 	{
 		.mac_name = "cbcmac(aes)",
 		.mac_driver_name = "cbcmac-aes-te",
-		.blocksize = AES_BLOCK_SIZE,
+		.blocksize = 1,
 		.template_ahash = {
 			.init = lca_te_ahash_init,
 			.update = lca_te_ahash_update,
