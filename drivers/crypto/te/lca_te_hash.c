@@ -486,10 +486,6 @@ static int lca_te_ahash_init(struct ahash_request *req)
 		}
         break;
 	case LCA_TE_ALG_MAIN_CMAC:
-		rc = te_cmac_setkey(&ctx->cctx, ctx->mackey,
-				ctx->keylen*BITS_IN_BYTE);
-		if(rc != 0)
-			return rc;
 		areq_ctx->init.cmac_req = kmalloc(sizeof(te_cmac_request_t), GFP_KERNEL);
 		if(!areq_ctx->init.hmac_req) {
 			return -ENOMEM;
@@ -500,11 +496,6 @@ static int lca_te_ahash_init(struct ahash_request *req)
 		rc = te_cmac_astart(&ctx->cctx, areq_ctx->init.cmac_req);
         break;
 	case LCA_TE_ALG_MAIN_CBCMAC:
-		rc = te_cbcmac_setkey(&ctx->cbctx, ctx->mackey,
-				ctx->keylen*BITS_IN_BYTE);
-		if(rc != 0)
-			return rc;
-
 		/*free old iv*/
 		if(ctx->maciv)
 			kfree(ctx->maciv);
@@ -875,6 +866,7 @@ static int lca_te_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 		      unsigned int keylen)
 {
 	struct te_hash_ctx *ctx = crypto_ahash_ctx(tfm);
+	int rc = -1;
 
 	if(ctx->mackey)
 		kfree(ctx->mackey);
@@ -883,6 +875,24 @@ static int lca_te_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 		return -ENOMEM;
 	memcpy(ctx->mackey, key, keylen);
 	ctx->keylen = keylen;
+	switch (_LCA_GET_MAIN_MODE(ctx->alg)) {
+		case LCA_TE_ALG_MAIN_CMAC:
+			rc = te_cmac_setkey(&ctx->cctx, ctx->mackey,
+				ctx->keylen*BITS_IN_BYTE);
+			if(rc != 0)
+				return te_convert_retval_to_linux(rc);
+			break;
+		case LCA_TE_ALG_MAIN_CBCMAC:
+			rc = te_cbcmac_setkey(&ctx->cbctx, ctx->mackey,
+				ctx->keylen*BITS_IN_BYTE);
+
+			pr_debug("%s %d rc %d\n", __func__, __LINE__, rc);
+			if(rc != 0)
+				return te_convert_retval_to_linux(rc);
+			break;
+		default:
+			break;
+	}
 	return 0;
 }
 
