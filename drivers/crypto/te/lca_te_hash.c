@@ -362,6 +362,11 @@ static int lca_te_ahash_digest(struct ahash_request *req)
 		rc = te_acmac(ctx->drvdata->h, _LCA_CMAC_GET_MAIN_ALG(ctx->alg), areq_ctx->dgst.cmac_req);
 		return ((rc == TE_SUCCESS) ? (-EINPROGRESS):rc);
 	case LCA_TE_ALG_MAIN_CBCMAC:
+		if (req->nbytes == 0) {
+			memset(req->result, 0, crypto_ahash_digestsize(tfm));
+			ahash_request_complete(req, TE_SUCCESS);
+			return 0;
+		}
 		areq_ctx->dgst.cmac_req = kmalloc(sizeof(te_cmac_request_t), GFP_KERNEL);
 		if(!areq_ctx->dgst.cmac_req)
 			return -ENOMEM;
@@ -621,6 +626,10 @@ static int lca_te_ahash_update(struct ahash_request *req)
 
 		return ((rc == TE_SUCCESS) ? (-EINPROGRESS):rc);
 	case LCA_TE_ALG_MAIN_CBCMAC:
+		if (req->nbytes == 0) {
+			ahash_request_complete(req, TE_SUCCESS);
+			return -EINPROGRESS;
+		}
 		areq_ctx->update.cmac_req = kmalloc(sizeof(te_cmac_request_t), GFP_KERNEL);
 		if(!areq_ctx->update.cmac_req)
 			return -ENOMEM;
@@ -763,6 +772,11 @@ static int lca_te_ahash_final(struct ahash_request *req)
 		rc = te_cmac_afinish(&ctx->cctx, areq_ctx->final.cmac_req);
 		return ((rc == TE_SUCCESS) ? (-EINPROGRESS):rc);
 	case LCA_TE_ALG_MAIN_CBCMAC:
+		if (ctx->datalen == 0) {
+			memset(req->result, 0, crypto_ahash_digestsize(tfm));
+			ahash_request_complete(req, TE_SUCCESS);
+			return -EINPROGRESS;
+		}
 		if(ctx->datalen%ctx->cbctx.crypt->blk_size) {
 			int padlen=0;
 
