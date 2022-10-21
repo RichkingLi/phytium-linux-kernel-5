@@ -34,12 +34,12 @@ OSAL_API void osal_log_dump_data_less(const char *str,
                                       const uint8_t *data,
                                       size_t size);
 /* OSAL log levels */
-#define OSAL_LOG_LEVEL_NULL (-1)
-#define OSAL_LOG_LEVEL_ERR (0)
-#define OSAL_LOG_LEVEL_WARN (1)
-#define OSAL_LOG_LEVEL_INFO (2)
-#define OSAL_LOG_LEVEL_DEBUG (3)
-#define OSAL_LOG_LEVEL_TRACE (4)
+#define OSAL_LOG_LEVEL_NULL (0)
+#define OSAL_LOG_LEVEL_ERR (1)
+#define OSAL_LOG_LEVEL_WARN (2)
+#define OSAL_LOG_LEVEL_INFO (3)
+#define OSAL_LOG_LEVEL_DEBUG (4)
+#define OSAL_LOG_LEVEL_TRACE (5)
 
 #ifndef OSAL_MAX_LOG_LEVEL
 #warning "OSAL_MAX_LOG_LEVEL is not defined, use default: TRACE(4)"
