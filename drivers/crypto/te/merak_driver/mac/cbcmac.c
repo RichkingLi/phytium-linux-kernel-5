@@ -798,8 +798,11 @@ int te_cbcmac_aupdate( te_cbcmac_ctx_t *ctx, te_cmac_request_t *req )
         }
         te_memlist_truncate_from_tail(in, cactx->up.npdata, remainder,
                                              true, &in_info);
-        in->nent = in_info.nent;
-        in->ents[in_info.ind].len = in_info.len;
+        /* in_info.ind may < 0 after truncate, add check */
+        if (in_info.ind > (-1)) {
+            in->nent = in_info.nent;
+            in->ents[in_info.ind].len = in_info.len;
+        }
         cactx->up.npdlen = remainder;
         cactx->req = req;
         _in = &cactx->up.in;
@@ -821,9 +824,11 @@ int te_cbcmac_aupdate( te_cbcmac_ctx_t *ctx, te_cmac_request_t *req )
         memcpy(_in->ents + _in->nent,
                 in->ents,
                 (in_info.ind + 1)* sizeof(te_mement_t));
-
-        _in->nent += in_info.ind + 1;
-        _in->ents[_in->nent - 1].len = in_info.offset;
+        /* in_info.ind may < 0 after truncate, add check */
+        if (in_info.ind > (-1)) {
+            _in->nent += in_info.ind + 1;
+            _in->ents[_in->nent - 1].len = in_info.offset;
+        }
         sreq->base.completion = cbcmac_aupdate_done;
         sreq->base.data = (void *)cactx;
         cactx->up.cctx = ctx;
