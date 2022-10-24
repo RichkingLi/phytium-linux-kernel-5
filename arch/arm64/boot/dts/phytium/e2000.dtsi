@@ -915,7 +915,6 @@
 			compatible = "phytium,sce";
 			reg = <0x0 0x32a30000 0x0 0x6000>;
 			interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
 		};
 
 		rng0: rng@32a36000 {
