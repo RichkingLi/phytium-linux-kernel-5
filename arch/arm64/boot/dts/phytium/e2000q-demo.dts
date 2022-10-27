@@ -14,6 +14,7 @@
 /memreserve/ 0x80000000 0x10000;
 
 #include "e2000q.dtsi"
+#include "dt-bindings/gpio/gpio.h"
 
 /{
 	model = "E2000Q DEMO DDR4";
@@ -70,6 +71,8 @@
 		status = "okay";
 
 		codec0: es8336@10 {
+			det-gpios = <&gpio2 5  GPIO_ACTIVE_LOW>;
+			sel-gpios = <&gpio2 11 GPIO_ACTIVE_LOW>;
 			#sound-dai-cells = <0x0>;
 			compatible = "everest,es8336";
 			reg = <0x10>;
