@@ -108,6 +108,10 @@ config GPIO_REGMAP
 config GPIO_MAX730X
 	tristate
 
+# This symbol is selected by both MMIO and PCI expanders
+config GPIO_PHYTIUM_CORE
+	tristate
+
 menu "Memory mapped GPIO drivers"
 	depends on HAS_IOMEM
 
@@ -739,6 +743,27 @@ config GPIO_AMD_FCH
 	  Note: This driver doesn't registers itself automatically, as it
 	  needs to be provided with platform specific configuration.
 	  (See eg. CONFIG_PCENGINES_APU2.)
+
+config GPIO_PHYTIUM_PLAT
+	tristate "Phytium GPIO Platform support"
+	default y if ARCH_PHYTIUM
+	depends on ARM64
+	select GPIO_PHYTIUM_CORE
+	select IRQ_DOMAIN
+	select GENERIC_IRQ_CHIP
+	select GPIOLIB_IRQCHIP
+	help
+	  Say yes here to enable GPIO support for Phytium SoCs.
+
+config GPIO_PHYTIUM_SGPIO
+	tristate "Phytium SGPIO support"
+	default y if ARCH_PHYTIUM
+	depends on ARM64
+	select IRQ_DOMAIN
+	select GENERIC_IRQ_CHIP
+	help
+	  Say yes here to enable SGPIO support for Phytium SoCs.
+
 endmenu
 
 menu "Port-mapped I/O GPIO drivers"
@@ -1519,6 +1544,20 @@ config GPIO_SODAVILLE
 	select GENERIC_IRQ_CHIP
 	help
 	  Say Y here to support Intel Sodaville GPIO.
+
+
+config GPIO_PHYTIUM_PCI
+	tristate "Phytium GPIO PCI support"
+	select GPIO_PHYTIUM_CORE
+	select IRQ_DOMAIN
+	select GENERIC_IRQ_CHIP
+	select GPIOLIB_IRQCHIP
+	help
+	  Say Y here to support Phytium PCI GPIO controller on X100 chipset.
+	  An interrupt is generated when any of the inputs change state
+	  (low to high or high to low).
+
+	  This driver can be used for Phytium X100.
 
 endmenu
 
