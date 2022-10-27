@@ -14,7 +14,7 @@
 #include <linux/dma-mapping.h>
 #include "phytium-mci.h"
 
-static u32 mci_caps = MMC_CAP_CMD23 | MMC_CAP_ERASE | MMC_CAP_WAIT_WHILE_BUSY;
+static u32 mci_caps = MMC_CAP_CMD23 | MMC_CAP_WAIT_WHILE_BUSY;
 
 #if defined CONFIG_PM && defined CONFIG_PM_SLEEP
 

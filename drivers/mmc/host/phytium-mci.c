@@ -1455,7 +1455,7 @@ int phytium_mci_common_probe(struct phytium_mci_host *host)
 		mmc->max_blk_size = 512;
 		mmc->max_req_size = 512 * 1024;
 		mmc->max_blk_count = mmc->max_req_size / 512;
-		host->dma.adma_table = dma_zalloc_coherent(host->dev,
+		host->dma.adma_table = dma_alloc_coherent(host->dev,
 							   MAX_BD_NUM *
 							   sizeof(struct phytium_adma2_64_desc),
 							   &host->dma.adma_addr, GFP_KERNEL);
