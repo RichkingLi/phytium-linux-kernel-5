@@ -112,3 +112,6 @@ endif
 
 obj-$(CONFIG_MMC_SDHCI_XENON)	+= sdhci-xenon-driver.o
 sdhci-xenon-driver-y		+= sdhci-xenon.o sdhci-xenon-phy.o
+
+obj-$(CONFIG_MMC_PHYTIUM_MCI_PCI)	+= phytium-mci-pci.o phytium-mci.o
+obj-$(CONFIG_MMC_PHYTIUM_MCI_PLTFM)	+= phytium-mci-plat.o phytium-mci.o
