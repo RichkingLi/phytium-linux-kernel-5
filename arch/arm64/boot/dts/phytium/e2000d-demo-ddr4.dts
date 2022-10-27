@@ -210,7 +210,7 @@
 	status = "okay";
 };
 
-&i2s_dp0 {
+&i2s_dp1 {
 	dai-name = "phytium-i2s-dp0";
 	status = "okay";
 };
