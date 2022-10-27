@@ -462,6 +462,7 @@ int te_dgst_afinish( te_dgst_ctx_t *ctx, te_dgst_request_t *req )
         ret = te_hash_start(ctx->crypt, NULL);
         __HASH_ALERT__(ret, "te_hash_start error!");
         __HASH_CHECK_CONDITION__(ret);
+        break;
     case TE_DRV_HASH_STATE_START:
         ret = te_hash_update(ctx->crypt, NULL, 0);
         __HASH_ALERT__(ret, "te_hash_update error!");
