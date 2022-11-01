@@ -97,6 +97,8 @@ struct phytium_adc {
 
 	struct completion completion;
 	struct mutex lock;
+
+	struct iio_dev *indio_dev;
 };
 
 static ssize_t phytium_adc_show_conv_interval(struct iio_dev *indio_dev,
@@ -441,7 +443,7 @@ static const u64 phytium_adc_event_codes[] = {
 static irqreturn_t phytium_adc_threaded_irq(int irq, void *data)
 {
 	struct phytium_adc *adc = data;
-	struct iio_dev *indio_dev = iio_priv_to_dev(adc);
+	struct iio_dev *indio_dev = adc->indio_dev;
 	s64 timestamp = iio_get_time_ns(indio_dev);
 	unsigned long status;
 	int ch;
@@ -516,7 +518,6 @@ static int phytium_adc_postenable(struct iio_dev *indio_dev)
 {
 	struct phytium_adc *adc = iio_priv(indio_dev);
 
-	iio_triggered_buffer_postenable(indio_dev);
 	phytium_adc_start_stop(adc, true);
 
 	return 0;
@@ -536,7 +537,6 @@ static int phytium_adc_postdisable(struct iio_dev *indio_dev)
 static const struct iio_buffer_setup_ops phytium_buffer_setup_ops = {
 	.preenable = &phytium_adc_preenable,
 	.postenable = &phytium_adc_postenable,
-	.predisable = &iio_triggered_buffer_predisable,
 	.postdisable = &phytium_adc_postdisable,
 };
 
@@ -582,6 +582,7 @@ static int phytium_adc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, indio_dev);
 
 	adc = iio_priv(indio_dev);
+	adc->indio_dev = indio_dev;
 	adc->dev = dev;
 
 	ret = phytium_adc_parse_properties(pdev, adc);
