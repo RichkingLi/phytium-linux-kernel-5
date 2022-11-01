@@ -570,4 +570,14 @@ config PWM_ZX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-zx.
 
+config PWM_PHYTIUM
+	tristate "Phytium PWM support"
+	depends on ARCH_PHYTIUM
+	help
+	  Generic PWM framework driver for the PWM controller found on
+	  Phytium SoCs.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-phytium.
+
 endif
