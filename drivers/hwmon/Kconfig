@@ -2095,6 +2095,16 @@ config SENSORS_INTEL_M10_BMC_HWMON
 	  sensors monitor various telemetry data of different components on the
 	  card, e.g. board temperature, FPGA core temperature/voltage/current.
 
+
+config SENSORS_PHYTIUM
+	tristate "Phytium Fan tach and capture counter driver"
+	help
+	  This driver provides support for Phytium Fan Tacho and capture
+	  counter controllers.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called tacho-phytium.
+
 if ACPI
 
 comment "ACPI drivers"
