@@ -313,7 +313,7 @@ static int pwm_phytium_set_polarity(struct pwm_chip *chip, enum pwm_polarity pol
 }
 
 static int pwm_phytium_apply(struct pwm_chip *chip, struct pwm_device *pwm,
-			struct pwm_state *state)
+			const struct pwm_state *state)
 {
 	struct phytium_pwm_chip *phytium_pwm = to_phytium_pwm_chip(chip);
 	struct pwm_state cstate;
