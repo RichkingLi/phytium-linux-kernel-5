@@ -341,7 +341,7 @@
 			porta {
 				compatible = "phytium,gpio-port";
 				reg = <0>;
-				nr-gpios = <16>;
+				ngpios = <16>;
 			};
 		};
 
@@ -373,7 +373,7 @@
 			porta {
 				compatible = "phytium,gpio-port";
 				reg = <0>;
-				nr-gpios = <16>;
+				ngpios = <16>;
 			};
 		};
 
@@ -405,7 +405,7 @@
 			porta {
 				compatible = "phytium,gpio-port";
 				reg = <0>;
-				nr-gpios = <16>;
+				ngpios = <16>;
 			};
 		};
 
@@ -422,7 +422,7 @@
 			porta {
 				compatible = "phytium,gpio-port";
 				reg = <0>;
-				nr-gpios = <16>;
+				ngpios = <16>;
 			};
 		};
 
@@ -439,7 +439,7 @@
 			porta {
 				compatible = "phytium,gpio-port";
 				reg = <0>;
-				nr-gpios = <16>;
+				ngpios = <16>;
 			};
 		};
 
@@ -456,7 +456,7 @@
 			porta {
 				compatible = "phytium,gpio-port";
 				reg = <0>;
-				nr-gpios = <16>;
+				ngpios = <16>;
 			};
 		};
 
