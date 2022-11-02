@@ -729,7 +729,7 @@ int lca_te_kpp_alloc(struct te_drvdata *drvdata)
 			goto fail2;
 		} else {
 			list_add_tail(&t_alg->entry, &kpp_handle->kpp_list);
-			dev_err(dev, "Registered %s\n", t_alg->kpp_alg.base.cra_driver_name);
+			dev_dbg(dev, "Registered %s\n", t_alg->kpp_alg.base.cra_driver_name);
 		}
 	}
 

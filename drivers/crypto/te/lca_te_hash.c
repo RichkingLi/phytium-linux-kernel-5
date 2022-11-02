@@ -1826,7 +1826,7 @@ int lca_te_hash_alloc(struct te_drvdata *drvdata)
 			} else {
 				list_add_tail(&t_alg->entry,
 						  &hash_handle->hash_list);
-				dev_err(dev,"registered %s\n",
+				dev_dbg(dev,"registered %s\n",
 						te_ahash_algs[alg].mac_driver_name);
 			}
 
