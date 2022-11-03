@@ -1,0 +1,90 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * DTS file for Phytium E2000D test board
+ *
+ * Copyright (C) 2022, Phytium Technology Co., Ltd.
+ */
+
+/dts-v1/;
+/memreserve/ 0x80000000 0x10000;
+
+#include "e2000d.dtsi"
+
+/{
+	model = "E2000DS SLT Board";
+	compatible = "phytium,e2000d";
+
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
+
+	memory@00{
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x1 0x00000000>;
+	};
+};
+
+&pcie {
+	status = "okay";
+};
+
+&usb3_0 {
+	status = "okay";
+};
+
+&usb3_1 {
+	status = "okay";
+};
+
+&usb2_0 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usb2_3 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&usb2_4 {
+	dr_mode = "host";
+	status = "okay";
+};
+
+&macb0 {
+	phy-mode = "sgmii";
+	status = "okay";
+};
+
+&macb1 {
+	phy-mode = "sgmii";
+	status = "okay";
+};
+
+&can0 {
+	status = "okay";
+};
+
+&can1 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+};
+
+&mmc0 {
+	status = "okay";
+};
+
+&mmc1 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&rng0 {
+	status = "okay";
+};
