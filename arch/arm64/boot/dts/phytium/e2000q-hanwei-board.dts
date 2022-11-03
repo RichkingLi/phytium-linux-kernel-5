@@ -198,3 +198,7 @@
 &gpio5 {
 	status = "okay";
 };
+
+&vpu0 {
+    status = "okay";
+};
