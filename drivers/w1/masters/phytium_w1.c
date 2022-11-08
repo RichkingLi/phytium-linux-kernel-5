@@ -33,8 +33,10 @@
 #define PHY_W1M_DATA_REG                        0x70
 
 #define PHY_W1M_CMD_ROM_SEARCH                  0xF0
+#define PHY_W1M_CMD_WRITE_BIT                   0x35
 #define PHY_W1M_CMD_WRITE_BYTE                  0x36
 #define PHY_W1M_CMD_RESET_BUS                   0x37
+#define PHY_W1M_CMD_READ_BIT                    0x3A
 #define PHY_W1M_CMD_READ_BYTE                   0x3B
 #define PHY_W1M_SLAVE_ROM_ID                    0x160
 
@@ -102,8 +104,8 @@ static void w1m_disable_interrupt(struct w1m_data *w1m_data, u32 offset,
 	writel(ie & mask, w1m_data->w1m_base + offset);
 }
 
-/* write out a byte and fill *status with W1M_INT_STATUS */
-static int phytium_write_byte(struct w1m_data *w1m_data, u8 val, u8 *status)
+/* write out a byte or bit and fill *status with W1M_INT_STATUS */
+static int phytium_write_data(struct w1m_data *w1m_data, u8 val, u8 *status, bool is_bit)
 {
 	int ret;
 	unsigned long irqflags;
@@ -122,7 +124,7 @@ static int phytium_write_byte(struct w1m_data *w1m_data, u8 val, u8 *status)
 			  PHY_W1M_INT_EN_TXCOMPLETE);
 
 	phytium_w1m_write(w1m_data, PHY_W1M_DATA_REG, val);
-	phytium_w1m_write(w1m_data, PHY_W1M_CMD, 0x36);
+	phytium_w1m_write(w1m_data, PHY_W1M_CMD, is_bit ? PHY_W1M_CMD_WRITE_BIT : PHY_W1M_CMD_WRITE_BYTE);
 
 	/* wait for the TXCOMPLETE bit */
 	ret = wait_event_timeout(w1m_wait_queue,
@@ -164,7 +166,8 @@ static irqreturn_t w1m_isr(int irq, void *_w1m)
 	return IRQ_HANDLED;
 }
 
-static int phytium_read_byte(struct w1m_data *w1m_data, u8 *val)
+
+static int phytium_read_data(struct w1m_data *w1m_data, u8 *val, bool is_bit)
 {
 	int ret = 0;
 	u8 status;
@@ -192,7 +195,7 @@ static int phytium_read_byte(struct w1m_data *w1m_data, u8 *val)
 			  PHY_W1M_INT_EN_RXCOMPLETE,
 			  PHY_W1M_INT_EN_RXCOMPLETE);
 
-	phytium_w1m_write(w1m_data, PHY_W1M_CMD, 0x3b);
+	phytium_w1m_write(w1m_data, PHY_W1M_CMD, is_bit ? PHY_W1M_CMD_READ_BIT : PHY_W1M_CMD_READ_BYTE);
 
 	wait_event_timeout(w1m_wait_queue,
 			   (w1m_data->w1m_irqstatus & PHY_W1M_INT_STATUS_RXCOMPLETE),
@@ -213,6 +216,7 @@ out:
 rtn:
 	return ret;
 }
+
 
 static int phytium_w1m_get(struct w1m_data *w1m_data)
 {
@@ -366,7 +370,7 @@ static u8 phytium_w1_reset_bus(void *_w1m)
 }
 
 /* Read a byte of data from the device */
-static u8 phytium_w1_read_byte(void *_w1m)
+static u8 phytium_w1_read_data(void *_w1m, bool is_bit)
 {
 	struct w1m_data *w1m_data = _w1m;
 	u8 val = 0;
@@ -377,7 +381,7 @@ static u8 phytium_w1_read_byte(void *_w1m)
 		phytium_w1m_get(w1m_data);
 
 	w1m_data->init_trans++;
-	ret = phytium_read_byte(w1m_data, &val);
+	ret = phytium_read_data(w1m_data, &val, is_bit);
 	if (ret) {
 		ret = mutex_lock_interruptible(&w1m_data->w1m_mutex);
 		if (ret < 0) {
@@ -408,8 +412,18 @@ static u8 phytium_w1_read_byte(void *_w1m)
 	return val;
 }
 
+static u8 phytium_w1_read_bit(void *_w1m)
+{
+	return phytium_w1_read_data(_w1m, true);
+}
+
+static u8 phytium_w1_read_byte(void *_w1m)
+{
+	return phytium_w1_read_data(_w1m, false);
+}
+
 /* Write a byte of data to the device */
-static void phytium_w1_write_byte(void *_w1m, u8 byte)
+static void phytium_w1_write_data(void *_w1m, u8 byte, bool is_bit)
 {
 	struct w1m_data *w1m_data = _w1m;
 	int ret;
@@ -426,7 +440,7 @@ static void phytium_w1_write_byte(void *_w1m, u8 byte)
 	}
 	mutex_unlock(&w1m_data->w1m_mutex);
 
-	ret = phytium_write_byte(w1m_data, byte, &status);
+	ret = phytium_write_data(w1m_data, byte, &status, is_bit);
 	if (ret < 0) {
 		dev_err(w1m_data->dev, "TX failure:Ctrl status %x\n", status);
 		return;
@@ -448,9 +462,21 @@ static void phytium_w1_write_byte(void *_w1m, u8 byte)
 	}
 }
 
+static void phytium_w1_write_bit(void *_w1m, u8 bit)
+{
+	phytium_w1_write_data(_w1m, bit, true);
+}
+
+static void phytium_w1_write_byte(void *_w1m, u8 bit)
+{
+	phytium_w1_write_data(_w1m, bit, false);
+}
+
 static struct w1_bus_master phytium_w1_master = {
 	.read_byte	= phytium_w1_read_byte,
 	.write_byte	= phytium_w1_write_byte,
+	.read_bit	= phytium_w1_read_bit,
+	.write_bit	= phytium_w1_write_bit,
 	.reset_bus	= phytium_w1_reset_bus,
 };
 
