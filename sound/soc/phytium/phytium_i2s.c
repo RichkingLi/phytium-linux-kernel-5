@@ -607,6 +607,13 @@ int snd_i2s_stream_setup_periods(struct i2s_stream *azx_dev)
 
 	pos_adj = bus->bdl_pos_adj;
 
+	/* do workaround: force set pos_adj as 0, just like in 4.19 test result.
+	 * "i2s_phytium *dev" and "struct azx_dev *azx_dev" may have wrong usage,
+	 * cause pos_adj from bus->bdl_pos_adj is unpredictable, in 4.19 branch is 0,
+	 * and in 5.10 branch is 260.
+	 */
+	pos_adj = 0;
+
 	if (!azx_dev->no_period_wakeup && pos_adj > 0) {
 
 		pos_align = pos_adj;
