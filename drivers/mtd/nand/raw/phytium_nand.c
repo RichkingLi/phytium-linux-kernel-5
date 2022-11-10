@@ -254,6 +254,7 @@ int phytium_nfc_prepare_cmd(struct nand_chip *chip,
 }
 EXPORT_SYMBOL_GPL(phytium_nfc_prepare_cmd);
 
+#ifdef DEBUG
 static int phytium_nfc_cmd_dump(struct phytium_nfc *nfc,
 				struct phytium_nfc_op *nfc_op, u8 *buf)
 {
@@ -276,7 +277,7 @@ static int phytium_nfc_cmd_dump(struct phytium_nfc *nfc,
 	for (i = 0; i < PHYTIUM_NFC_DSP_SIZE; i++)
 		sprintf(str, "%s %02x", str, buf[i]);
 
-	dev_info(nfc->dev, "%s\n", str);
+	dev_dbg(nfc->dev, "%s\n", str);
 
 	return 0;
 }
@@ -300,11 +301,15 @@ int phytium_nfc_data_dump(struct phytium_nfc *nfc, u8 *buf, u32 len)
 		sprintf(str, "%s %02x", str, buf[i]);
 	}
 
-	dev_info(nfc->dev, "%s\n", str);
+	dev_dbg(nfc->dev, "%s\n", str);
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(phytium_nfc_data_dump);
+#else
+#define phytium_nfc_cmd_dump(...)
+#define phytium_nfc_data_dump(...)
+#endif
 
 int phytium_nfc_send_cmd(struct nand_chip *chip,
 			 struct phytium_nfc_op *nfc_op)
@@ -1567,7 +1572,6 @@ static int phytium_nfc_hw_ecc_bch_read_page_raw(
 {
 	struct mtd_info *mtd = nand_to_mtd(chip);
 	u32 oob_len = oob_required ? mtd->oobsize : 0;
-	struct phytium_nfc *nfc = to_phytium_nfc(chip->controller);
 	int ret;
 
 	ret = phytium_nand_page_read(mtd, chip, buf, NULL, 0, page, true);
@@ -1575,7 +1579,7 @@ static int phytium_nfc_hw_ecc_bch_read_page_raw(
 		ret = phytium_nand_oob_read(mtd, chip, NULL, chip->oob_poi,
 					    oob_len, page, true);
 
-	phytium_nfc_data_dump(nfc, buf, mtd->writesize);
+	phytium_nfc_data_dump(to_phytium_nfc(chip->controller), buf, mtd->writesize);
 
 	return ret;
 }
@@ -1583,7 +1587,6 @@ static int phytium_nfc_hw_ecc_bch_read_page_raw(
 static int phytium_nfc_hw_ecc_bch_read_oob_raw(
 					       struct nand_chip *chip, int page)
 {
-	struct phytium_nfc *nfc = to_phytium_nfc(chip->controller);
 	int ret;
 	struct mtd_info *mtd = nand_to_mtd(chip);
 
@@ -1594,7 +1597,7 @@ static int phytium_nfc_hw_ecc_bch_read_oob_raw(
 	ret = phytium_nand_oob_read(mtd, chip, NULL, chip->oob_poi,
 				    mtd->oobsize, page, true);
 
-	phytium_nfc_data_dump(nfc, chip->oob_poi, mtd->oobsize);
+	phytium_nfc_data_dump(to_phytium_nfc(chip->controller), chip->oob_poi, mtd->oobsize);
 
 	return ret;
 }
@@ -1607,7 +1610,6 @@ static int phytium_nfc_hw_ecc_bch_read_page(
 	int ret;
 	struct mtd_info *mtd = nand_to_mtd(chip);
 	u32  oob_len = oob_required ? mtd->oobsize : 0;
-	struct phytium_nfc *nfc = to_phytium_nfc(chip->controller);
 	struct phytium_nand_chip *phytium_nand = NULL;
 
 	phytium_nand = to_phytium_nand(chip);
@@ -1623,7 +1625,7 @@ static int phytium_nfc_hw_ecc_bch_read_page(
 					    oob_len, page, true);
 	}
 
-	phytium_nfc_data_dump(nfc, buf, mtd->writesize);
+	phytium_nfc_data_dump(to_phytium_nfc(chip->controller), buf, mtd->writesize);
 
 	return ret;
 }
@@ -1632,7 +1634,6 @@ static int phytium_nfc_hw_ecc_bch_read_oob(
 					    struct nand_chip *chip,
 					    int page)
 {
-	struct phytium_nfc *nfc = to_phytium_nfc(chip->controller);
 	struct mtd_info *mtd = nand_to_mtd(chip);
 	u32 oob_len = mtd->oobsize;
 	int ret;
@@ -1640,7 +1641,7 @@ static int phytium_nfc_hw_ecc_bch_read_oob(
 	ret = phytium_nand_oob_read(mtd, chip, NULL, chip->oob_poi,
 				    oob_len, page, true);
 
-	phytium_nfc_data_dump(nfc, chip->oob_poi, oob_len);
+	phytium_nfc_data_dump(to_phytium_nfc(chip->controller), chip->oob_poi, oob_len);
 
 	return ret;
 }
