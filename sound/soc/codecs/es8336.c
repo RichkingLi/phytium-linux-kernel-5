@@ -320,10 +320,10 @@ static const struct snd_soc_dapm_widget es8336_dapm_widgets[] = {
 	SND_SOC_DAPM_MIXER("Right Hp mixer", ES8336_HPMIX_PDN_REG15,
 			   0, 1, &es8336_out_right_mix[0],
 			   ARRAY_SIZE(es8336_out_right_mix)),
-	SND_SOC_DAPM_MIXER("Left Hp mixer", SND_SOC_NOPM,
+	SND_SOC_DAPM_MIXER("Left Hp mixer2", SND_SOC_NOPM,
 			   4, 1, &es8336_out_left_mix[0],
 			   ARRAY_SIZE(es8336_out_left_mix)),
-	SND_SOC_DAPM_MIXER("Right Hp mixer", SND_SOC_NOPM,
+	SND_SOC_DAPM_MIXER("Right Hp mixer2", SND_SOC_NOPM,
 			   0, 1, &es8336_out_right_mix[0],
 			   ARRAY_SIZE(es8336_out_right_mix)),
 
