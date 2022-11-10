@@ -1008,24 +1008,14 @@ int vxd_dbgfs_populate(struct vxd_dev *vxd, const char *root)
 	}
 
 	sprintf(entry_name, "%s_%s", MTX_RAM_NAME, "dwords");
-	if (!debugfs_create_u32(entry_name,
+	debugfs_create_u32(entry_name,
 				0644, root_dir,
-				&ctx->mtx_ram_dwords)) {
-		dev_warn(vxd->dev, "%s: failed to create %s_dwords dbg file!\n",
-				__func__, entry_name);
-		ret = -ENOENT;
-		goto out_entry_failed;
-	}
+				&ctx->mtx_ram_dwords);
 
 	sprintf(entry_name, "%s_%s", MTX_RAM_NAME, "offs");
-	if (!debugfs_create_u32(entry_name,
+	debugfs_create_u32(entry_name,
 				0644, root_dir,
-				&ctx->mtx_ram_offs)) {
-		dev_warn(vxd->dev, "%s: failed to create %s_offs dbg file!\n",
-				__func__, entry_name);
-		ret = -ENOENT;
-		goto out_entry_failed;
-	}
+				&ctx->mtx_ram_offs);
 
 	/* Raw regions - exported as fixed size blob */
 	sprintf(entry_name, "%s_%s", REGIO_NAME, "raw");
@@ -1081,13 +1071,8 @@ int vxd_dbgfs_populate(struct vxd_dev *vxd, const char *root)
 				reg32++;
 			}
 
-			if (!debugfs_create_regset32(regspace->name,
-						0444, regio_dir, regset)) {
-				dev_warn(vxd->dev, "%s: failed to create %s dbg file!\n",
-						__func__, regspace->name);
-				ret = -ENOENT;
-				goto out_entry_failed;
-			}
+			debugfs_create_regset32(regspace->name,
+						0444, regio_dir, regset);
 		}
 	}
 
@@ -1163,23 +1148,32 @@ int vxd_dbgfs_populate(struct vxd_dev *vxd, const char *root)
 		} \
 	}
 
+
+#define VXD_DBGFS_CREATE_NORET(_type_, _name_, _vxd_dev_member_) \
+	{ \
+		debugfs_create_##_type_(_name_, \
+			0644, root_dir, \
+			&vxd->_vxd_dev_member_); \
+	}
+
 	/* Current core running status */
 	VXD_DBGFS_CREATE(bool, CORE_HW_STATUS_NAME, hw_on);
-	VXD_DBGFS_CREATE(u32, CORE_CLOCK_FREQ_NAME, stats.boot.freq_khz);
-	VXD_DBGFS_CREATE(u32, MTX_TIMER_DIV_NAME, stats.boot.timer_div);
-	VXD_DBGFS_CREATE(u64, CORE_FW_BOOT_TIME_NAME, stats.boot.upload_us);
-	VXD_DBGFS_CREATE(u64, CORE_UPTIME_NAME, stats.uptime_ms);
-	VXD_DBGFS_CREATE(u32, CORE_MEM_USAGE_LAST, stats.mem_usage_last);
+	VXD_DBGFS_CREATE_NORET(u32, CORE_CLOCK_FREQ_NAME, stats.boot.freq_khz);
+	VXD_DBGFS_CREATE_NORET(u32, MTX_TIMER_DIV_NAME, stats.boot.timer_div);
+	VXD_DBGFS_CREATE_NORET(u64, CORE_FW_BOOT_TIME_NAME, stats.boot.upload_us);
+	VXD_DBGFS_CREATE_NORET(u64, CORE_UPTIME_NAME, stats.uptime_ms);
+	VXD_DBGFS_CREATE_NORET(u32, CORE_MEM_USAGE_LAST, stats.mem_usage_last);
 
 	/* Current core run-time params */
 	VXD_DBGFS_CREATE(bool, CORE_KEEP_ON_NAME, keep_hw_on);
 	VXD_DBGFS_CREATE(bool, CORE_UPLOAD_DMA_NAME, fw_upload_dma);
-	VXD_DBGFS_CREATE(u32, CORE_DWR_PERIOD_NAME, hw_dwr_period);
-	VXD_DBGFS_CREATE(u32, CORE_HW_CRC_NAME, hw_crc);
-	VXD_DBGFS_CREATE(u32, CORE_PM_DELAY_NAME, hw_pm_delay);
-	VXD_DBGFS_CREATE(u32, CORE_BOOT_DELAY_NAME, boot_msleep);
-	VXD_DBGFS_CREATE(u32, CORE_FW_WAIT_DBG_FIFO_NAME, fw_wait_dbg_fifo);
+	VXD_DBGFS_CREATE_NORET(u32, CORE_DWR_PERIOD_NAME, hw_dwr_period);
+	VXD_DBGFS_CREATE_NORET(u32, CORE_HW_CRC_NAME, hw_crc);
+	VXD_DBGFS_CREATE_NORET(u32, CORE_PM_DELAY_NAME, hw_pm_delay);
+	VXD_DBGFS_CREATE_NORET(u32, CORE_BOOT_DELAY_NAME, boot_msleep);
+	VXD_DBGFS_CREATE_NORET(u32, CORE_FW_WAIT_DBG_FIFO_NAME, fw_wait_dbg_fifo);
 #undef VXD_DBGFS_CREATE
+#undef VXD_DBGFS_CREATE_NORET
 
 	return 0;
 

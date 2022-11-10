@@ -12,7 +12,7 @@
 #include <linux/wait.h>
 #include <linux/idr.h>
 #include <linux/workqueue.h>
-#include <linux/time.h>
+#include <linux/time64.h>
 
 #include <uapi/vxd.h>
 
@@ -106,7 +106,7 @@ struct vxd_dev {
 	unsigned long pm_start; /* Time, in jiffies, when core became idle */
 	unsigned long dwr_start; /* Time, in jiffies, when dwr has been started */
 
-	struct timespec hw_start; /* Time, when core has been powered on */
+	struct timespec64 hw_start; /* Time, when core has been powered on */
 
 	struct vxd_stats stats; /* Core statistics */
 

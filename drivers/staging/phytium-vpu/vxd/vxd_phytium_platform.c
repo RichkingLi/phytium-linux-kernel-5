@@ -96,7 +96,7 @@ static int vxd_platform_probe(struct platform_device *pdev)
 		res2 = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 		pci_heap_videomem_configs[0].options.carveout.phys = res2->start;
 		pci_heap_videomem_configs[0].options.carveout.size = resource_size(res2);
-		pci_heap_videomem_configs[0].options.carveout.kptr = devm_ioremap_nocache(
+		pci_heap_videomem_configs[0].options.carveout.kptr = devm_ioremap(
 				&pdev->dev,
 				pci_heap_videomem_configs[0].options.carveout.phys,
 				pci_heap_videomem_configs[0].options.carveout.size);

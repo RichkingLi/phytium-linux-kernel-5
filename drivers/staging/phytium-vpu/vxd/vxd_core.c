@@ -312,7 +312,7 @@ static int vxd_make_hw_on_locked(struct vxd_dev *vxd)
 
 	vxd->hw_on = 1;
 	/* Remember the time hw is powered on */
-	getnstimeofday(&vxd->hw_start);
+	ktime_get_real_ts64(&vxd->hw_start);
 
 	/* If we have debugfs client attached, send an event */
 	vxd_dbgfs_wake(vxd);
@@ -360,7 +360,7 @@ static void vxd_make_hw_off_locked(struct vxd_dev *vxd, bool suspending)
 	{
 		uint64_t uptime = 0;
 		uint64_t boot_time = vxd->stats.boot.upload_us;
-		struct timespec hw_stop, span_time;
+		struct timespec64 hw_stop, span_time;
 
 		/* Convert fw boot time to ms */
 		do_div(boot_time, 1000);
@@ -368,9 +368,9 @@ static void vxd_make_hw_off_locked(struct vxd_dev *vxd, bool suspending)
 		/* Calculate how long(in milliseconds) the core
 		 * has been powered on for the last time
 		 */
-		getnstimeofday(&hw_stop);
-		span_time = timespec_sub(hw_stop, vxd->hw_start);
-		uptime = timespec_to_ns(&span_time);
+		ktime_get_real_ts64(&hw_stop);
+		span_time = timespec64_sub(hw_stop, vxd->hw_start);
+		uptime = timespec64_to_ns(&span_time);
 		do_div(uptime, 1000000UL);
 
 		vxd->stats.uptime_ms += uptime + boot_time;

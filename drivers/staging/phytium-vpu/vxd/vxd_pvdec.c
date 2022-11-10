@@ -831,28 +831,28 @@ static void pvdec_post_boot_setup(const struct device *dev,
 }
 
 static void pvdec_clock_measure(void __iomem *reg_base,
-	struct timespec *start_time, uint32_t *start_ticks)
+	struct timespec64 *start_time, uint32_t *start_ticks)
 {
 	local_irq_disable();
-	getnstimeofday(start_time);
+	ktime_get_real_ts64(start_time);
 	*start_ticks = VXD_RD_REG(reg_base, MTX_CORE, MTX_SYSC_TXTIMER);
 	local_irq_enable();
 }
 
 static int pvdec_clock_calculate(const struct device *dev,
-		void __iomem *reg_base, struct timespec start_time,
+		void __iomem *reg_base, struct timespec64 start_time,
 		uint32_t start_ticks, u32 *freq_khz, u64 *upload_us)
 {
-	struct timespec end_time, dif_time;
+	struct timespec64 end_time, dif_time;
 	int64_t span_nsec = 0;
 	uint32_t stop_ticks, tot_ticks;
 
 	local_irq_disable();
-	getnstimeofday(&end_time);
+	ktime_get_real_ts64(&end_time);
 	stop_ticks = VXD_RD_REG(reg_base, MTX_CORE, MTX_SYSC_TXTIMER);
 	local_irq_enable();
-	dif_time = timespec_sub(end_time, start_time);
-	span_nsec = timespec_to_ns(&dif_time);
+	dif_time = timespec64_sub(end_time, start_time);
+	span_nsec = timespec64_to_ns(&dif_time);
 
 	/* Sanity check for mtx timer */
 	if (!stop_ticks || stop_ticks < start_ticks) {
@@ -1015,7 +1015,7 @@ static int pvdec_start_fw_dma(const struct device *dev,
 
 	/* NOTE: The MTX timer starts once DMA boot is triggered */
 	{
-		struct timespec host_time;
+		struct timespec64 host_time;
 		uint32_t mtx_time;
 
 		pvdec_clock_measure(reg_base, &host_time, &mtx_time);
@@ -1116,7 +1116,7 @@ static int pvdec_start_fw_regs(const struct device *dev, void __iomem *reg_base,
 
 	/* NOTE: The MTX timer starts once the MTX is enabled */
 	{
-		struct timespec host_time;
+		struct timespec64 host_time;
 		uint32_t mtx_time;
 
 		pvdec_clock_measure(reg_base, &host_time, &mtx_time);
