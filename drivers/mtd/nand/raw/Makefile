@@ -59,6 +59,10 @@ obj-$(CONFIG_MTD_NAND_MESON)		+= meson_nand.o
 obj-$(CONFIG_MTD_NAND_CADENCE)		+= cadence-nand-controller.o
 obj-$(CONFIG_MTD_NAND_ARASAN)		+= arasan-nand-controller.o
 
+obj-$(CONFIG_MTD_NAND_PHYTIUM)		+= phytium_nand.o
+obj-$(CONFIG_MTD_NAND_PHYTIUM_PCI)	+= phytium_nand_pci.o
+obj-$(CONFIG_MTD_NAND_PHYTIUM_PLAT)	+= phytium_nand_plat.o
+
 nand-objs := nand_base.o nand_legacy.o nand_bbt.o nand_timings.o nand_ids.o
 nand-objs += nand_onfi.o
 nand-objs += nand_jedec.o

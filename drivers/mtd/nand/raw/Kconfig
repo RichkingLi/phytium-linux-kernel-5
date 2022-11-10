@@ -486,6 +486,25 @@ config MTD_NAND_RICOH
 	  expermental, readwrite
 	  'SmartMedia/xD new translation layer'
 
+config MTD_NAND_PHYTIUM
+	tristate
+
+config MTD_NAND_PHYTIUM_PCI
+	tristate "Support Phytium NAND controller as a PCI device"
+	select MTD_NAND_PHYTIUM
+	depends on PCI
+	help
+	  Enable the driver for NAND flash controller of Phytium X100 chipset,
+	  using the Phytium NAND controller core.
+
+config MTD_NAND_PHYTIUM_PLAT
+	tristate "Support Phytium NAND controller as a platform device"
+	select MTD_NAND_PHYTIUM
+	depends on ARCH_PHYTIUM
+	help
+	  Enable the driver for NAND flash controller of Phytium CPU chipset,
+	  using the Phytium NAND controller core.
+
 config MTD_NAND_DISKONCHIP
 	tristate "DiskOnChip 2000, Millennium and Millennium Plus (NAND reimplementation)"
 	depends on HAS_IOMEM
