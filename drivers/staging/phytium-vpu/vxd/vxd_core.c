@@ -772,7 +772,7 @@ int vxd_deinit(void)
 		u32 bytes = mem_usage - (MB * (1024 * 1024));
 		u32 kB = (bytes * 1000) / (1024 * 1024);
 
-		pr_err("%s: Total kernel memory used: %u.%u MB\n",
+		pr_info("%s: Total kernel memory used: %u.%u MB\n",
 				__func__, MB, kB);
 
 		img_mem_destroy_proc_ctx(drv.mem_ctx);
@@ -1426,7 +1426,7 @@ void vxd_rm_link(struct vxd_dev *vxd, struct vxd_link *link)
 		u32 bytes = vxd->stats.mem_usage_last - (MB * (1024 * 1024));
 		u32 kB = (bytes * 1000) / (1024 * 1024);
 
-		dev_err(vxd->dev,
+		dev_info(vxd->dev,
 			"%s: Total user memory used: %u.%u MB\n",
 			__func__, MB, kB);
 	}
@@ -1574,7 +1574,7 @@ static int vxd_prepare_fw(struct vxd_dev *vxd, uint32_t type)
 		/* Fetch firmware from the file system */
 		ret = request_firmware(&fw, drv_fw_name[type], vxd->dev);
 		if (ret) {
-			dev_err(vxd->dev, "%s: failed to fetch firmware (err:%d)!\n",
+			dev_info(vxd->dev, "%s: cann't to fetch firmware (ret:%d)!\n",
 				__func__, ret);
 			return ret;
 		}
@@ -1741,7 +1741,7 @@ int vxd_add_dev(struct device *dev,
 
 		ret = vxd_prepare_fw(vxd, type);
 		if (ret) {
-			dev_err(dev, "%s: %s acquire failed!",
+			dev_info(dev, "%s: %s not found!",
 					__func__, drv_fw_name[type]);
 			/* Fail only when insecure firmware is not found.
 			 * Treat a missing loopback or secure firmware as

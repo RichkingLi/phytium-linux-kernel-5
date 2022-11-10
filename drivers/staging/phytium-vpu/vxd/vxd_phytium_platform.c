@@ -114,7 +114,7 @@ static int vxd_platform_probe(struct platform_device *pdev)
 				NULL, reg_addr, reg_size);
 
 	if (ret) {
-		dev_err(dev, "failed to initialize driver core!\n");
+		dev_info(dev, "cann't to initialize driver core!\n");
 		goto out_add_dev;
 	}
 
@@ -183,7 +183,7 @@ struct platform_driver vxd_platform_drv = {
 	.probe  = vxd_platform_probe,
 	.remove = vxd_platform_remove,
 	.driver = {
-		.name   = "d5500-vxd",
+		.name   = "phytium-vpu",
 		.owner	= THIS_MODULE,
 		.of_match_table = of_match_ptr(vxd_of_id_table),
 		.pm = &vxd_pm_pci_ops,
