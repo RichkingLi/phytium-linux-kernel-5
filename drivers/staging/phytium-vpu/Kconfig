@@ -1,0 +1,10 @@
+config VIDEO_PHYTIUM_VPU
+	tristate "Phytium Video Processor Unit"
+	depends on ARCH_PHYTIUM || COMPILE_TEST
+	help
+	  This driver supports the Phytium Video Processor Unit, which
+	  is able to handle video decoding/encoding in a range of
+	  formats.
+
+	  To compile this driver as a module, choose M here.
+
