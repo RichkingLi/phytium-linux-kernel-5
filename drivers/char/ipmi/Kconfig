@@ -141,3 +141,25 @@ config IPMB_DEVICE_INTERFACE
 	  Provides a driver for a device (Satellite MC) to
 	  receive requests and send responses back to the BMC via
 	  the IPMB interface. This module requires I2C support.
+
+
+config PHYTIUM_KCS_IPMI_BMC
+	depends on ARCH_PHYTIUM
+	select IPMI_KCS_BMC
+	select REGMAP_MMIO
+	tristate "PHYTIUM KCS IPMI BMC driver"
+	help
+	  Provides a driver for the KCS (Keyboard Controller Style) IPMI
+	  interface found on Phytium SOCs (E2000).
+
+	  The driver implements the BMC side of the KCS contorller, it
+	  provides the access of KCS IO space for BMC side.
+
+config PHYTIUM_BT_IPMI_BMC
+	depends on ARCH_PHYTIUM
+	depends on REGMAP && REGMAP_MMIO && MFD_SYSCON
+	tristate "PHYTIUM BT BMC driver"
+	help
+	  Provides a driver for the BT (Block Transfer) interface found
+	  on Phytium SOCs (e2000). The driver implements the BMC side of
+	  the BT interface.
