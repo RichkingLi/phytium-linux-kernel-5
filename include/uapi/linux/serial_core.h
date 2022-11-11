@@ -279,4 +279,11 @@
 /* Freescale LINFlexD UART */
 #define PORT_LINFLEXUART	122
 
+
+/* Phytium PCI UART
+ * use bigger value to aviod code confilct
+ * when update in the future.
+ */
+#define PORT_PHYTIUM   200
+
 #endif /* _UAPILINUX_SERIAL_CORE_H */

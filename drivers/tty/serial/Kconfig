@@ -1583,6 +1583,17 @@ config SERIAL_MILBEAUT_USIO_CONSOLE
 	  receives all kernel messages and warnings and which allows logins in
 	  single user mode).
 
+config SERIAL_PHYTIUM_PCI
+	tristate "Phytium PCI serial port support"
+	depends on PCI
+	select SERIAL_CORE
+	help
+	  This driver supports the Phytium UART controller on PCI/PCIe adapters.
+	  If you want to compile this driver into the kernel, say Y here.  To
+	  compile this driver as a module, choose M here.
+
+	  If unsure, say N.
+
 endmenu
 
 config SERIAL_MCTRL_GPIO
