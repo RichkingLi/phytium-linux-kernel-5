@@ -1227,14 +1227,14 @@ static int phytium_jpeg_setup_video(struct phytium_jpeg_dev *jpeg_dev)
 			    V4L2_CAP_STREAMING;
 	vdev->v4l2_dev = v4l2_dev;
 	strscpy(vdev->name, PHYTIUM_JPEG_NAME, sizeof(vdev->name));
-	vdev->vfl_type = VFL_TYPE_GRABBER; /* The newest kernel using VFL_TYPE_VIDEO */
+	vdev->vfl_type = VFL_TYPE_VIDEO;
 	vdev->vfl_dir = VFL_DIR_RX;
 	vdev->release = video_device_release_empty;
 	vdev->ioctl_ops = &phytium_jpeg_ioctl_ops;
 	vdev->lock = &jpeg_dev->video_lock;
 
 	video_set_drvdata(vdev, jpeg_dev);
-	ret = video_register_device(vdev, VFL_TYPE_GRABBER, 0);
+	ret = video_register_device(vdev, VFL_TYPE_VIDEO, 0);
 	if (ret != 0) {
 		dev_err(jpeg_dev->dev, "Failed to register video device\n");
 		goto err_video_register;
