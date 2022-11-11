@@ -5,6 +5,11 @@
  * Copyright (C) 2022, Phytium Technology Co., Ltd.
  *
  * Hongmin Qi <qihongmin@phytium.com.cn>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
  */
 
 /dts-v1/;
@@ -132,8 +137,17 @@
 	status = "okay";
 };
 
-&spi0 {
+&qspi0 {
 	status = "okay";
+
+	flash@0 {
+		status = "okay";
+	};
+};
+
+&spi0 {
+	global-cs = <1>;
+	status = "disabled";
 };
 
 &mmc0 {

@@ -4,6 +4,8 @@
  *
  * Copyright (C) 2022, Phytium Technology Co., Ltd.
  *
+ * Shaojun Yang <yangshaojun@phytium.com.cn>
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
@@ -79,6 +81,7 @@
             #sound-dai-cells = <0>;
             compatible = "everest,es8336";
             reg = <0x10>;
+            mic-src = [20];
         };
 	};
 
@@ -178,18 +181,18 @@
 };
 
 &usb2_0 {
-	dr_mode = "peripheral";
+	dr_mode = "host";
 	status = "okay";
 };
 
 &usb2_1 {
 	dr_mode = "peripheral";
-	status = "okay";
+	status = "disabled";
 };
 
 &usb2_2 {
 	dr_mode = "peripheral";
-	status = "okay";
+	status = "disabled";
 };
 
 &usb2_3 {
@@ -215,8 +218,8 @@
 };
 
 &dc0 {
-	pipe_mask = /bits/ 8 <0x3>;
-	edp_mask = /bits/ 8 <0x0>;
+	pipe_mask = [03];
+	edp_mask = [00];
 	status = "okay";
 };
 
@@ -231,16 +234,31 @@
 	status = "okay";
 };
 
+&qspi0 {
+	status = "okay";
+
+	flash@0 {
+		status = "okay";
+	};
+};
+
 &spi0 {
 	global-cs = <1>;
 	status = "disabled";
 
 	flash: w25q128@0 {
 		compatible = "winbond,w25q128", "jedec,spi-nor";
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
 		spi-max-frequency = <12000000>;
-		reg = <0>;
+		reg = <0x00>;
 		status = "disabled";
 	};
+};
+
+&spi1 {
+	global-cs = <1>;
+	status = "disabled";
 };
 
 &spi2 {
@@ -249,6 +267,15 @@
 };
 
 &mmc0 {
+	bus-width = <0x00000004>;
+	max-frequency = <50000000>;
+	cap-sdio-irq;
+	cap-sd-highspeed;
+	no-mmc;
+	status = "okay";
+};
+
+&mmc1 {
 	bus-width = <0x00000008>;
 	max-frequency = <50000000>;
 	cap-mmc-hw-reset;
@@ -256,6 +283,11 @@
 	no-sdio;
 	no-sd;
 	non-removable;
+	status = "disabled";
+};
+
+&pwm0 {
+	phytium,db = <0 0 0 1000 1000 0>;
 	status = "okay";
 };
 
@@ -281,11 +313,11 @@
 };
 
 &can0 {
-	status = "disabled";
+	status = "okay";
 };
 
 &can1 {
-	status = "disabled";
+	status = "okay";
 };
 
 &rng0 {

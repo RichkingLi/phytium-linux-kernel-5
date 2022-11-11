@@ -292,8 +292,12 @@
 
 	jpeg0: jpeg@32b32000 {
 		compatible = "phytium,e2000-jpeg";
-		reg = <0x0 0x32b32000 0 0x1000>;
-		interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+		reg = <0x0 0x32b32000 0 0x1000>,
+		      <0x0 0x28072000 0 0x30>,
+		      <0x0 0x28073000 0 0x30>;
+		interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 224 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 225 IRQ_TYPE_LEVEL_HIGH>;
 		phytium,ocm-buf-addr = <0x30c40000 0x30c60000>;
 		status = "disabled";
 	};

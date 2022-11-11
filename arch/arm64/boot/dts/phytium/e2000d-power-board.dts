@@ -5,6 +5,11 @@
  * Copyright (C) 2022, Phytium Technology Co., Ltd.
  *
  * Hongmin Qi <qihongmin@phytium.com.cn>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
  */
 
 /dts-v1/;
@@ -27,7 +32,7 @@
 };
 
 &soc {
-	i2c@28026000 {
+	mio9: i2c@28026000 {
         compatible = "phytium,i2c";
         reg = <0x0 0x28026000 0x0 0x1000>;
         interrupts = <0x0 0x65 0x4>;
@@ -42,11 +47,11 @@
         };
     };
 
-    i2c@28020000 {
+	mio6: i2c@28020000 {
         status = "okay";
         compatible = "phytium,i2c";
         reg = <0x0 0x28020000 0x0 0x1000>;
-        interrupts = <0x0 0x62 0x4>;
+        interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
         clocks = <&sysclk_50mhz>;
         #address-cells = <0x1>;
         #size-cells = <0x0>;
@@ -57,46 +62,46 @@
         };
     };
 
-	uart@28028000 {
+	mio10: uart@28028000 {
         compatible = "arm,pl011", "arm,primecell";
         reg = <0x0 0x28028000 0x0 0x1000>;
-        interrupts = <0x0 0x66 0x4>;
+        interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
         clocks = <&sysclk_50mhz &sysclk_50mhz>;
         clock-names = "uartclk", "apb_pclk";
         status = "okay";
     };
 
-	uart@2802a000 {
+	mio11: uart@2802a000 {
         compatible = "arm,pl011", "arm,primecell";
         reg = <0x0 0x2802a000 0x0 0x1000>;
-        interrupts = <0x0 0x67 0x4>;
+        interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
         clocks = <&sysclk_50mhz &sysclk_50mhz>;
         clock-names = "uartclk", "apb_pclk";
         status = "okay";
     };
 
-	uart@2802e000 {
+	mio13: uart@2802e000 {
         compatible = "arm,pl011", "arm,primecell";
         reg = <0x0 0x2802e000 0x0 0x1000>;
-        interrupts = <0x0 0x69 0x4>;
+        interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
         clocks = <&sysclk_50mhz &sysclk_50mhz>;
         clock-names = "uartclk", "apb_pclk";
         status = "okay";
     };
 
-	uart@28030000 {
+	mio14: uart@28030000 {
         compatible = "arm,pl011", "arm,primecell";
         reg = <0x0 0x28030000 0x0 0x1000>;
-        interrupts = <0x0 0x6a 0x4>;
+		interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
         clocks = <&sysclk_50mhz &sysclk_50mhz>;
         clock-names = "uartclk", "apb_pclk";
         status = "okay";
     };
 
-	uart@28032000 {
+	mio15: uart@28032000 {
         compatible = "arm,pl011", "arm,primecell";
         reg = <0x0 0x28032000 0x0 0x1000>;
-        interrupts = <0x0 0x6b 0x4>;
+        interrupts = <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>;
         clocks = <&sysclk_50mhz &sysclk_50mhz>;
         clock-names = "uartclk", "apb_pclk";
         status = "okay";
@@ -155,8 +160,8 @@
 };
 
 &dc0 {
-	pipe_mask = /bits/ 8 <0x3>;
-	edp_mask = /bits/ 8 <0x0>;
+	pipe_mask = [02];
+	edp_mask = [00];
 	status = "okay";
 };
 
@@ -168,13 +173,22 @@
 	status = "okay";
 };
 
-&spi0 {
+&qspi0 {
 	status = "okay";
+
+	flash@0 {
+		status = "okay";
+	};
+};
+
+&spi0 {
+	global-cs = <1>;
+	status = "disabled";
 };
 
 &mmc0 {
 	bus-width = <8>;
-	max-frequency = <100000000>;
+	max-frequency = <50000000>;
 	cap-mmc-hw-reset;
 	cap-mmc-highspeed;
 	no-sdio;
