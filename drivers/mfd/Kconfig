@@ -2168,5 +2168,18 @@ config MFD_INTEL_M10_BMC
 	  additional drivers must be enabled in order to use the functionality
 	  of the device.
 
+config MFD_PHYTIUM_I2S_LSD
+	bool "PHYTIUM X100 I2S LSD MFD driver"
+	depends on (PCI && ARCH_PHYTIUM)
+	help
+	  This enables support for the Phytium X100 LSD I2S controller.
+
+config MFD_PHYTIUM_I2S_MMD
+	bool "PHYTIUM X100 I2S MMD MFD driver"
+	depends on (PCI && ARCH_PHYTIUM)
+	help
+	  This enables support for the Phytium X100 MMD I2S controllers
+	  for Display Port.
+
 endmenu
 endif

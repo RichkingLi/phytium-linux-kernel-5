@@ -267,3 +267,6 @@ obj-$(CONFIG_MFD_KHADAS_MCU) 	+= khadas-mcu.o
 obj-$(CONFIG_SGI_MFD_IOC3)	+= ioc3.o
 obj-$(CONFIG_MFD_SIMPLE_MFD_I2C)	+= simple-mfd-i2c.o
 obj-$(CONFIG_MFD_INTEL_M10_BMC)   += intel-m10-bmc.o
+
+obj-$(CONFIG_MFD_PHYTIUM_I2S_LSD)	+= phytium_x100_i2s_lsd.o
+obj-$(CONFIG_MFD_PHYTIUM_I2S_MMD)	+= phytium_x100_i2s_mmd.o
