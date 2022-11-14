@@ -751,6 +751,7 @@ int te_hmac_afinish( te_hmac_ctx_t *ctx, te_hmac_request_t *req )
         ret = te_hash_start(ctx->crypt, &prv_ctx->key);
         __HMAC_ALERT__(ret, "te_hash_start error!");
         __HMAC_CHECK_CONDITION__(ret);
+        break;
     case TE_DRV_HASH_STATE_START:
         /* finsh after start */
         ret = te_hash_update(ctx->crypt, NULL, 0);
