@@ -109,6 +109,11 @@ struct controller {
 	unsigned int ist_running;
 	int request_result;
 	wait_queue_head_t requester;
+
+#ifdef CONFIG_ARCH_PHYTIUM
+	u32 buses;
+	u16 slot_ctrl_t;
+#endif
 };
 
 /**
