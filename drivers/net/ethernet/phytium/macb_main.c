@@ -1457,27 +1457,37 @@ static void macb_hresp_error_task(unsigned long data)
 	netif_tx_start_all_queues(dev);
 }
 
-static int macb_tx_restart(struct macb_queue *queue)
+static void macb_tx_restart(struct macb_queue *queue)
 {
 	unsigned int head = queue->tx_head;
 	unsigned int tail = queue->tx_tail;
 	struct macb *bp = queue->bp;
+	unsigned int head_idx, tbqp;
+
+	if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
+		queue_writel(queue, ISR, MACB_BIT(TXUBR));
 
 	if (head == tail)
-		return -ENXIO;
+		return;
+
+	tbqp = queue_readl(queue, TBQP) / macb_dma_desc_get_size(bp);
+	tbqp = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, tbqp));
+	head_idx = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, head));
+
+	if (tbqp == head_idx)
+		return;
 
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
 
-	return 0;
+	return;
 }
 
 static irqreturn_t macb_interrupt(int irq, void *dev_id)
 {
-	struct macb_queue *qq, *queue = dev_id;
+	struct macb_queue *queue = dev_id;
 	struct macb *bp = queue->bp;
 	struct net_device *dev = bp->dev;
 	u32 status, ctrl;
-	int q;
 
 	status = queue_readl(queue, ISR);
 
@@ -1530,12 +1540,8 @@ static irqreturn_t macb_interrupt(int irq, void *dev_id)
 			macb_tx_interrupt(queue);
 
 		if (status & MACB_BIT(TXUBR)) {
-			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
-				queue_writel(queue, ISR, MACB_BIT(TXUBR));
+			macb_tx_restart(queue);
 
-			for (q = 0, qq = bp->queues; q < bp->num_queues; ++q, ++qq)
-				if (!macb_tx_restart(qq))
-					break;
 		}
 
 		/* Link change detection isn't possible with RMII, so we'll
