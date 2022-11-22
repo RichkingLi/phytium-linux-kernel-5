@@ -112,16 +112,13 @@ phytium_platform_private_init(struct platform_device *pdev)
 			goto failed;
 		}
 	} else if (has_acpi_companion(&pdev->dev)) {
-printk("%s_%d\n", __func__, __LINE__);
 		acpi_id = acpi_match_device(display_acpi_ids, &pdev->dev);
 		if (!acpi_id) {
 			DRM_ERROR("failed to get acpi id data(phytium_info)\n");
 			goto exit;
 		}
-		printk("%s_%d\n", __func__, __LINE__);
 
 		phytium_info = (struct phytium_device_info *)acpi_id->driver_data;
-printk("%s_%d\n", __func__, __LINE__);
 
 		memcpy(&(priv->info), phytium_info, sizeof(struct phytium_device_info));
 		np = dev_fwnode(&(pdev->dev));
@@ -186,13 +183,11 @@ static int phytium_platform_probe(struct platform_device *pdev)
 	struct drm_device *dev = NULL;
 	int ret = 0;
 
-printk("%s_%d\n", __func__, __LINE__);
 	dev = drm_dev_alloc(&phytium_display_drm_driver, &pdev->dev);
 	if (IS_ERR(dev)) {
 		DRM_ERROR("failed to allocate drm_device\n");
 		return PTR_ERR(dev);
 	}
-	printk("%s_%d\n", __func__, __LINE__);
 
 	dev_set_drvdata(&pdev->dev, dev);
 	dma_set_mask(&pdev->dev, DMA_BIT_MASK(44));
