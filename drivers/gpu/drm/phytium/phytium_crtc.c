@@ -404,6 +404,30 @@ phytium_crtc_atomic_destroy_state(struct drm_crtc *crtc,
 	kfree(phytium_crtc_state);
 }
 
+static int phytium_crtc_enable_vblank(struct drm_crtc *crtc)
+{
+        struct drm_device *dev = crtc->dev;
+        struct phytium_display_private *priv = dev->dev_private;
+        struct phytium_crtc *phytium_crtc = to_phytium_crtc(crtc);
+        int phys_pipe = phytium_crtc->phys_pipe;
+        uint32_t group_offset = priv->dc_reg_base[phys_pipe];
+
+        phytium_writel_reg(priv, INT_ENABLE, group_offset, PHYTIUM_DC_INT_ENABLE);
+        return 0;
+}
+
+static void phytium_crtc_disable_vblank(struct drm_crtc *crtc)
+{
+
+        struct drm_device *dev = crtc->dev;
+        struct phytium_display_private *priv = dev->dev_private;
+        struct phytium_crtc *phytium_crtc = to_phytium_crtc(crtc);
+        int phys_pipe = phytium_crtc->phys_pipe;
+        uint32_t group_offset = priv->dc_reg_base[phys_pipe];
+
+        phytium_writel_reg(priv, INT_DISABLE, group_offset, PHYTIUM_DC_INT_ENABLE);
+}
+
 static const struct drm_crtc_funcs phytium_crtc_funcs = {
 	.gamma_set		= drm_atomic_helper_legacy_gamma_set,
 	.set_config		= drm_atomic_helper_set_config,
@@ -412,7 +436,10 @@ static const struct drm_crtc_funcs phytium_crtc_funcs = {
 	.reset			= drm_atomic_helper_crtc_reset,
 	.atomic_duplicate_state = phytium_crtc_atomic_duplicate_state,
 	.atomic_destroy_state   = phytium_crtc_atomic_destroy_state,
+	.enable_vblank          = phytium_crtc_enable_vblank,
+        .disable_vblank         = phytium_crtc_disable_vblank,
 };
+
 
 static void
 phytium_crtc_atomic_enable(struct drm_crtc *crtc,
