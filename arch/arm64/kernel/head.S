@@ -103,37 +103,40 @@ pe_header:
 	 *  x24        __primary_switch() .. relocate_kernel()  current RELR displacement
 	 */
 SYM_CODE_START(primary_entry)
-	bl	preserve_boot_args
-	bl	el2_setup			// Drop to EL1, w0=cpu_boot_mode
+	bl	preserve_boot_args		//保留引导加载程序中传递的参数到boot_args中
+	bl	el2_setup				// 判断目前是EL1还是EL2，
+									//如果是EL1就简单了，配置sctlr_el1寄存器就好了。
+									//如果是EL2就复杂了，需要配置sctlr_el2寄存器，配置内存，hcr，gic
 	adrp	x23, __PHYS_OFFSET
 	and	x23, x23, MIN_KIMG_ALIGN - 1	// KASLR offset, defaults to 0
-	bl	set_cpu_boot_mode_flag
-	bl	__create_page_tables
+	bl	set_cpu_boot_mode_flag		//把其他cpu都配置成跟cpu0同样的特权等级
+	bl	__create_page_tables		//创建页表
 	/*
 	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
 	 * details.
 	 * On return, the CPU will be ready for the MMU to be turned on and
 	 * the TCR will have been set.
 	 */
-	bl	__cpu_setup			// initialise processor
-	b	__primary_switch
+	bl	__cpu_setup			// 初始化处理器以打开MMU。
+	b	__primary_switch	//设置TTBR0和TTBR1，使能MMU，将kernel image重定位，跳转到__primary_switched
+
 SYM_CODE_END(primary_entry)
 
 /*
  * Preserve the arguments passed by the bootloader in x0 .. x3
  */
 SYM_CODE_START_LOCAL(preserve_boot_args)
-	mov	x21, x0				// x21=FDT
+	mov	x21, x0			// x21=FDT，将FDT的地址暂存在x21寄存器中，释放出x0以便后续做临时变量使用
 
-	adr_l	x0, boot_args			// record the contents of
-	stp	x21, x1, [x0]			// x0 .. x3 at kernel entry
-	stp	x2, x3, [x0, #16]
-
+	adr_l	x0, boot_args			// x0保存了boot_args变量的地址
+	stp	x21, x1, [x0]			// 保存x0和x1的值到boot_args[0]和boot_args[1]
+	stp	x2, x3, [x0, #16]		// 保存x2和x3的值到boot_args[2]和boot_args[3]
+	
 	dmb	sy				// needed before dc ivac with
 						// MMU off
 
 	mov	x1, #0x20			// 4 x 8 bytes
-	b	__inval_dcache_area		// tail call
+	b	__inval_dcache_area		// 让[boot_args，boot_args+#0x20]的内存数据缓存失效
 SYM_CODE_END(preserve_boot_args)
 
 /*
@@ -373,7 +376,7 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	mov	x5, x3				// __pa(__idmap_text_start)
 	adr_l	x6, __idmap_text_end		// __pa(__idmap_text_end)
 
-	map_memory x0, x1, x3, x6, x7, x3, x4, x10, x11, x12, x13, x14
+	map_memory x0, x1, x3, x6, x7, x3, x4, x10, x11, x12, x13, x14	
 
 	/*
 	 * Map the kernel image (starting with PHYS_OFFSET).
@@ -387,7 +390,7 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	sub	x6, x6, x3			// _end - _text
 	add	x6, x6, x5			// runtime __va(_end)
 
-	map_memory x0, x1, x5, x6, x7, x3, x4, x10, x11, x12, x13, x14
+	map_memory x0, x1, x5, x6, x7, x3, x4, x10, x11, x12, x13, x14	//创建内核镜像的映射关系
 
 	/*
 	 * Since the page tables have been populated with non-cacheable
@@ -490,18 +493,19 @@ EXPORT_SYMBOL(kimage_vaddr)
  * booted in EL1 or EL2 respectively.
  */
 SYM_FUNC_START(el2_setup)
-	msr	SPsel, #1			// We want to use SP_EL{1,2}
-	mrs	x0, CurrentEL
-	cmp	x0, #CurrentEL_EL2
-	b.eq	1f
-	mov_q	x0, (SCTLR_EL1_RES1 | ENDIAN_SET_EL1)
-	msr	sctlr_el1, x0
-	mov	w0, #BOOT_CPU_MODE_EL1		// This cpu booted in EL1
-	isb
-	ret
+	msr	SPsel, #1			//往SPsel写1，说明使用SP_EL0
+	mrs	x0, CurrentEL		//获取当前特权等级
+	cmp	x0, #CurrentEL_EL2	//看看是不是特权等级是否为EL2
+	b.eq	1f				//如果是，就跳转到1f
+	mov_q	x0, (SCTLR_EL1_RES1 | ENDIAN_SET_EL1)//
+	msr	sctlr_el1, x0		//配置EL1的系统控制寄存器
+	mov	w0, #BOOT_CPU_MODE_EL1		// 返回值存在w0寄存器中
+	isb								//内存屏障
+	ret								//返回
 
+	//这里说明当前等级是EL2
 1:	mov_q	x0, (SCTLR_EL2_RES1 | ENDIAN_SET_EL2)
-	msr	sctlr_el2, x0
+	msr	sctlr_el2, x0		//配置EL2的系统控制寄存器
 
 #ifdef CONFIG_ARM64_VHE
 	/*
@@ -509,19 +513,19 @@ SYM_FUNC_START(el2_setup)
 	 * x2 being non-zero indicates that we do have VHE, and that the
 	 * kernel is intended to run at EL2.
 	 */
-	mrs	x2, id_aa64mmfr1_el1
-	ubfx	x2, x2, #ID_AA64MMFR1_VHE_SHIFT, #4
+	mrs	x2, id_aa64mmfr1_el1	//配置内存模式寄存器
+	ubfx	x2, x2, #ID_AA64MMFR1_VHE_SHIFT, #4	//把虚拟机扩展支持位提取出来
 #else
 	mov	x2, xzr
 #endif
 
-	/* Hyp configuration. */
-	mov_q	x0, HCR_HOST_NVHE_FLAGS
-	cbz	x2, set_hcr
-	mov_q	x0, HCR_HOST_VHE_FLAGS
-set_hcr:
-	msr	hcr_el2, x0
-	isb
+	/* Hyp configuration. *///Hypervisor配置寄存器
+	mov_q	x0, HCR_HOST_NVHE_FLAGS	//访问到EL2的指令转发到未定义指令
+	cbz	x2, set_hcr		//x2为0（不支持虚拟机扩展，也就是传统分裂模式）则跳转到set_hcr
+	mov_q	x0, HCR_HOST_VHE_FLAGS	//设置中断路由到EL2、启动EL2设施、
+set_hcr://虚拟机扩展模式
+	msr	hcr_el2, x0		//写入hcr_el2
+	isb					//内存屏障
 
 	/*
 	 * Allow Non-secure EL1 and EL0 to access physical timer and counter.
@@ -533,20 +537,21 @@ set_hcr:
 	 * to transparently mess with the EL0 bits via CNTKCTL_EL1 access in
 	 * EL2.
 	 */
-	cbnz	x2, 1f
-	mrs	x0, cnthctl_el2
+	cbnz	x2, 1f			//x2为0（不支持虚拟机扩展）则跳转到1f
+	mrs	x0, cnthctl_el2		//读取Hypervisor控制的计数寄存器
 	orr	x0, x0, #3			// Enable EL1 physical timers
 	msr	cnthctl_el2, x0
 1:
-	msr	cntvoff_el2, xzr		// Clear virtual offset
+	msr	cntvoff_el2, xzr		// 物理计数器和虚拟计数器一致，不偏移
 
 #ifdef CONFIG_ARM_GIC_V3
 	/* GICv3 system register access */
-	mrs	x0, id_aa64pfr0_el1
+	mrs	x0, id_aa64pfr0_el1		//读取处理器特性寄存器
 	ubfx	x0, x0, #ID_AA64PFR0_GIC_SHIFT, #4
-	cbz	x0, 3f
+	cbz	x0, 3f		//如果不是gic3或者4.0。跳转到3f
 
-	mrs_s	x0, SYS_ICC_SRE_EL2
+	//说明gic版本为3.0或者4.0
+	mrs_s	x0, SYS_ICC_SRE_EL2		//读取中断控制器启用寄存器
 	orr	x0, x0, #ICC_SRE_EL2_SRE	// Set ICC_SRE_EL2.SRE==1
 	orr	x0, x0, #ICC_SRE_EL2_ENABLE	// Set ICC_SRE_EL2.Enable==1
 	msr_s	SYS_ICC_SRE_EL2, x0
@@ -559,22 +564,23 @@ set_hcr:
 #endif
 
 	/* Populate ID registers. */
+	//填充虚拟机ID寄存器
 	mrs	x0, midr_el1
 	mrs	x1, mpidr_el1
-	msr	vpidr_el2, x0
-	msr	vmpidr_el2, x1
+	msr	vpidr_el2, x0	//虚拟化处理器ID寄存器
+	msr	vmpidr_el2, x1	//虚拟化多处理器ID寄存器
 
 #ifdef CONFIG_COMPAT
 	msr	hstr_el2, xzr			// Disable CP15 traps to EL2
 #endif
 
-	/* EL2 debug */
-	mrs	x1, id_aa64dfr0_el1
+	/* EL2 debug */	
+	mrs	x1, id_aa64dfr0_el1		//读取AArch64调试特性寄存器
 	sbfx	x0, x1, #ID_AA64DFR0_PMUVER_SHIFT, #4
 	cmp	x0, #1
 	b.lt	4f				// Skip if no PMU present
-	mrs	x0, pmcr_el0			// Disable debug access traps
-	ubfx	x0, x0, #11, #5			// to EL2 and allow access to
+	mrs	x0, pmcr_el0			//读取性能监视器控制寄存器
+	ubfx	x0, x0, #11, #5			//允许EL2访问性能监视器控制寄存器
 4:
 	csel	x3, xzr, x0, lt			// all PMU counters from EL1
 
@@ -582,7 +588,7 @@ set_hcr:
 	ubfx	x0, x1, #ID_AA64DFR0_PMSVER_SHIFT, #4
 	cbz	x0, 7f				// Skip if SPE not present
 	cbnz	x2, 6f				// VHE?
-	mrs_s	x4, SYS_PMBIDR_EL1		// If SPE available at EL2,
+	mrs_s	x4, SYS_PMBIDR_EL1		// If SPE available at EL2,找不到该寄存器
 	and	x4, x4, #(1 << SYS_PMBIDR_EL1_P_SHIFT)
 	cbnz	x4, 5f				// then permit sampling of physical
 	mov	x4, #(1 << SYS_PMSCR_EL2_PCT_SHIFT | \
@@ -598,14 +604,14 @@ set_hcr:
 	msr	mdcr_el2, x3			// Configure debug traps
 
 	/* LORegions */
-	mrs	x1, id_aa64mmfr1_el1
+	mrs	x1, id_aa64mmfr1_el1	//AArch64内存模型特征寄存器
 	ubfx	x0, x1, #ID_AA64MMFR1_LOR_SHIFT, 4
 	cbz	x0, 1f
 	msr_s	SYS_LORC_EL1, xzr
 1:
 
 	/* Stage-2 translation */
-	msr	vttbr_el2, xzr
+	msr	vttbr_el2, xzr		//虚拟化转换表基寄存器
 
 	cbz	x2, install_el2_stub
 
@@ -965,7 +971,7 @@ SYM_FUNC_START_LOCAL(__primary_switch)
 #endif
 
 	adrp	x1, init_pg_dir
-	bl	__enable_mmu
+	bl	__enable_mmu			//开启mmu
 #ifdef CONFIG_RELOCATABLE
 #ifdef CONFIG_RELR
 	mov	x24, #0				// no RELR displacement yet

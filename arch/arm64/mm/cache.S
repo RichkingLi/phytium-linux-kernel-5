@@ -147,23 +147,23 @@ SYM_FUNC_START_PI(__inval_dcache_area)
  *	- start   - virtual start address of region
  *	- size    - size in question
  */
-	add	x1, x1, x0
-	dcache_line_size x2, x3
-	sub	x3, x2, #1
-	tst	x1, x3				// end cache line aligned?
-	bic	x1, x1, x3
+	add	x1, x1, x0			//kaddr+size放入x1中
+	dcache_line_size x2, x3	//把D-cache大小放入X2中，单位字节
+	sub	x3, x2, #1			//X2-1，得到D-cache的位掩码
+	tst	x1, x3				//处理kaddr+size，进行缓存对齐
+	bic	x1, x1, x3			
 	b.eq	1f
-	dc	civac, x1			// clean & invalidate D / U line
-1:	tst	x0, x3				// start cache line aligned?
+	dc	civac, x1			//让x1指向的地址缓存无效，并且清理缓存
+1:	tst	x0, x3				//处理kaddr，进行缓存对齐
 	bic	x0, x0, x3
 	b.eq	2f
-	dc	civac, x0			// clean & invalidate D / U line
+	dc	civac, x0			//让x0指向的地址缓存无效，并且清理缓存
 	b	3f
-2:	dc	ivac, x0			// invalidate D / U line
+2:	dc	ivac, x0			//让x0指向的地址缓存无效，不清理缓存
 3:	add	x0, x0, x2
 	cmp	x0, x1
-	b.lo	2b
-	dsb	sy
+	b.lo	2b				//循环，让[kaddr,kaddr+size]都去到2f处执行缓存失效
+	dsb	sy					//内存屏障
 	ret
 SYM_FUNC_END_PI(__inval_dcache_area)
 SYM_FUNC_END(__dma_inv_area)

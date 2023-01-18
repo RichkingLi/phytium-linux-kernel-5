@@ -278,7 +278,7 @@ alternative_endif
  */
 	.macro	read_ctr, reg
 alternative_if_not ARM64_MISMATCHED_CACHE_TYPE
-	mrs	\reg, ctr_el0			// read CTR
+	mrs	\reg, ctr_el0			// 读取 CTR 寄存器的值
 	nop
 alternative_else
 	ldr_l	\reg, arm64_ftr_reg_ctrel0 + ARM64_FTR_SYSVAL
@@ -289,22 +289,24 @@ alternative_endif
 /*
  * raw_dcache_line_size - get the minimum D-cache line size on this CPU
  * from the CTR register.
- */
+ */ 
+ 	//从这个CPU的CTR寄存器上获取最小D-cache行大小
 	.macro	raw_dcache_line_size, reg, tmp
-	mrs	\tmp, ctr_el0			// read CTR
-	ubfm	\tmp, \tmp, #16, #19		// cache line size encoding
-	mov	\reg, #4			// bytes per word
-	lsl	\reg, \reg, \tmp		// actual cache line size
+	mrs	\tmp, ctr_el0				// 读取 CTR 寄存器的值
+	ubfm	\tmp, \tmp, #16, #19	// 读取ctr_el0比特16到19的数值，这个数值和D-cache大小有关
+	mov	\reg, #4			// 给reg赋值4
+	lsl	\reg, \reg, \tmp		// 计算实际的cache 行大小，单位字节
 	.endm
 
 /*
  * dcache_line_size - get the safe D-cache line size across all CPUs
  */
+ 	//从这个CPU的CTR寄存器上获取最小D-cache行大小
 	.macro	dcache_line_size, reg, tmp
-	read_ctr	\tmp
-	ubfm		\tmp, \tmp, #16, #19	// cache line size encoding
-	mov		\reg, #4		// bytes per word
-	lsl		\reg, \reg, \tmp	// actual cache line size
+	read_ctr	\tmp					// 读取 CTR 寄存器的值
+	ubfm		\tmp, \tmp, #16, #19	// 读取ctr_el0比特16到19的数值，这个数值和D-cache大小有关
+	mov		\reg, #4		// 给reg赋值4
+	lsl		\reg, \reg, \tmp	// 计算实际的cache 行大小，单位字节
 	.endm
 
 /*
