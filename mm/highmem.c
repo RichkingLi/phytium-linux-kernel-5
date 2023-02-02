@@ -411,8 +411,8 @@ void *page_address(const struct page *page)
 	void *ret;
 	struct page_address_slot *pas;
 
-	if (!PageHighMem(page))
-		return lowmem_page_address(page);
+	if (!PageHighMem(page))//如果不是高端内存
+		return lowmem_page_address(page);//
 
 	pas = page_slot(page);
 	ret = NULL;

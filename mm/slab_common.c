@@ -831,16 +831,16 @@ void *kmalloc_order(size_t size, gfp_t flags, unsigned int order)
 	if (unlikely(flags & GFP_SLAB_BUG_MASK))
 		flags = kmalloc_fix_flags(flags);
 
-	flags |= __GFP_COMP;
-	page = alloc_pages(flags, order);
-	if (likely(page)) {
-		ret = page_address(page);
+	flags |= __GFP_COMP;//复合页，可以知道在kfree中正确释放页面的分配顺序
+	page = alloc_pages(flags, order);//从伙伴系统中分配页面的函数
+	if (likely(page)) {//分支预测，分配成功
+		ret = page_address(page);//获取页面的虚拟地址
 		mod_lruvec_page_state(page, NR_SLAB_UNRECLAIMABLE_B,
 				      PAGE_SIZE << order);
 	}
-	ret = kasan_kmalloc_large(ret, size, flags);
+	ret = kasan_kmalloc_large(ret, size, flags);//KASAN工具检测内存问题
 	/* As ret might get tagged, call kmemleak hook after KASAN. */
-	kmemleak_alloc(ret, size, 1, flags);
+	kmemleak_alloc(ret, size, 1, flags);//内存检测用到，注册内存对象
 	return ret;
 }
 EXPORT_SYMBOL(kmalloc_order);
@@ -848,8 +848,8 @@ EXPORT_SYMBOL(kmalloc_order);
 #ifdef CONFIG_TRACING
 void *kmalloc_order_trace(size_t size, gfp_t flags, unsigned int order)
 {
-	void *ret = kmalloc_order(size, flags, order);
-	trace_kmalloc(_RET_IP_, ret, size, PAGE_SIZE << order, flags);
+	void *ret = kmalloc_order(size, flags, order);//从伙伴系统分配页面内存的核心函数
+	trace_kmalloc(_RET_IP_, ret, size, PAGE_SIZE << order, flags);//tracer跟踪kmalloc，debug用的
 	return ret;
 }
 EXPORT_SYMBOL(kmalloc_order_trace);

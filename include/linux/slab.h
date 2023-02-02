@@ -477,8 +477,8 @@ kmalloc_order_trace(size_t size, gfp_t flags, unsigned int order)
 
 static __always_inline void *kmalloc_large(size_t size, gfp_t flags)
 {
-	unsigned int order = get_order(size);
-	return kmalloc_order_trace(size, flags, order);
+	unsigned int order = get_order(size);//计算出从伙伴系统中申请内存的order
+	return kmalloc_order_trace(size, flags, order);//真正的分配函数
 }
 
 /**
@@ -542,14 +542,14 @@ static __always_inline void *kmalloc(size_t size, gfp_t flags)
 		unsigned int index;
 #endif
 		if (size > KMALLOC_MAX_CACHE_SIZE)
-			return kmalloc_large(size, flags);
+			return kmalloc_large(size, flags);//大于8k，从伙伴系统中分配内存
 #ifndef CONFIG_SLOB
-		index = kmalloc_index(size);
+		index = kmalloc_index(size);//计算出需要从slab的那个层分配内存
 
 		if (!index)
 			return ZERO_SIZE_PTR;
 
-		return kmem_cache_alloc_trace(
+		return kmem_cache_alloc_trace(		//小于8k，从slab管理器中分配内存
 				kmalloc_caches[kmalloc_type(flags)][index],
 				flags, size);
 #endif
