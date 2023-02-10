@@ -77,6 +77,7 @@ struct page {
 	 * avoid collision and false-positive PageTail().
 	 */
 	union {
+		//用于缓存页和匿名页
 		struct {	/* Page cache and anonymous pages */
 			/**
 			 * @lru: Pageout list, eg. active_list protected by
@@ -95,6 +96,7 @@ struct page {
 			 */
 			unsigned long private;
 		};
+		//用于netstack使用的页面池
 		struct {	/* page_pool used by netstack */
 			/**
 			 * @dma_addr: might require a 64-bit value on
@@ -102,6 +104,7 @@ struct page {
 			 */
 			unsigned long dma_addr[2];
 		};
+		//用于slab，slob和slub管理的页面
 		struct {	/* slab, slob and slub */
 			union {
 				struct list_head slab_list;
@@ -129,6 +132,7 @@ struct page {
 				};
 			};
 		};
+		//用于复合页尾页
 		struct {	/* Tail pages of compound page */
 			unsigned long compound_head;	/* Bit zero is set */
 
@@ -138,12 +142,14 @@ struct page {
 			atomic_t compound_mapcount;
 			unsigned int compound_nr; /* 1 << compound_order */
 		};
+		//用于复合页的第二尾页
 		struct {	/* Second tail page of compound page */
 			unsigned long _compound_pad_1;	/* compound_head */
 			atomic_t hpage_pinned_refcount;
 			/* For both global and memcg */
 			struct list_head deferred_list;
 		};
+		//用于页表页
 		struct {	/* Page table pages */
 			unsigned long _pt_pad_1;	/* compound_head */
 			pgtable_t pmd_huge_pte; /* protected by page->ptl */
@@ -158,6 +164,7 @@ struct page {
 			spinlock_t ptl;
 #endif
 		};
+		//用于热拔插的设备页
 		struct {	/* ZONE_DEVICE pages */
 			/** @pgmap: Points to the hosting device page map. */
 			struct dev_pagemap *pgmap;

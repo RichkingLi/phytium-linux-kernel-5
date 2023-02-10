@@ -571,8 +571,8 @@ struct zone {
 
 	ZONE_PADDING(_pad3_)
 	/* Zone statistics */
-	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];
-	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
+	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];//存放各个状态的页数量
+	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];//存放numa状态的次数
 } ____cacheline_internodealigned_in_smp;
 
 enum pgdat_flags {

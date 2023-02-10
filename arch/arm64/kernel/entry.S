@@ -63,7 +63,7 @@
 	.macro kernel_ventry, el, label, regsize = 64
 	.align 7
 .Lventry_start\@:
-	.if	\el == 0
+	.if	\el == 0		//如果在EL0中，不用看肯定不是
 	/*
 	 * This must be the first instruction of the EL0 vector entries. It is
 	 * skipped by the trampoline vectors, to trigger the cleanup.
@@ -72,13 +72,13 @@
 	.if	\regsize == 64
 	mrs	x30, tpidrro_el0
 	msr	tpidrro_el0, xzr
-	.else
-	mov	x30, xzr
+	.else				//如果不在EL0中，
+	mov	x30, xzr		//给x30清零
 	.endif
 .Lskip_tramp_vectors_cleanup\@:
 	.endif
 
-	sub	sp, sp, #S_FRAME_SIZE
+	sub	sp, sp, #S_FRAME_SIZE	//把x0-x30寄存器入栈，修改sp值
 #ifdef CONFIG_VMAP_STACK
 	/*
 	 * Test whether the SP has overflowed, without corrupting a GPR.
@@ -90,7 +90,7 @@
 	tbnz	x0, #THREAD_SHIFT, 0f
 	sub	x0, sp, x0			// x0'' = sp' - x0' = (sp + x0) - sp = x0
 	sub	sp, sp, x0			// sp'' = sp' - x0 = (sp + x0) - x0 = sp
-	b	el\()\el\()_\label
+	b	el\()\el\()_\label		//前面是保存现场，后面是恢复现场，这里是真正的处理函数了
 
 0:
 	/*

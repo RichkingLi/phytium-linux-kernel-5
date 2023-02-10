@@ -2301,13 +2301,14 @@ struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 	struct vm_area_struct *vma;
 
 	/* Check the cache first. */
+	//在task_struct结构中的vmacache（存放最近访问过的VMA的数组）查找addr
 	vma = vmacache_find(mm, addr);
 	if (likely(vma))
 		return vma;
 
-	rb_node = mm->mm_rb.rb_node;
+	rb_node = mm->mm_rb.rb_node;//取出current的mm_struct的rb_node
 
-	while (rb_node) {
+	while (rb_node) {//遍历红黑树，找到vma
 		struct vm_area_struct *tmp;
 
 		tmp = rb_entry(rb_node, struct vm_area_struct, vm_rb);
@@ -2321,7 +2322,7 @@ struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 			rb_node = rb_node->rb_right;
 	}
 
-	if (vma)
+	if (vma)//如果找到vma，跟新vmacache
 		vmacache_update(addr, vma);
 	return vma;
 }
