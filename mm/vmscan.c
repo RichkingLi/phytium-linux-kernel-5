@@ -3243,7 +3243,7 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 				gfp_t gfp_mask, nodemask_t *nodemask)
 {
 	unsigned long nr_reclaimed;
-	struct scan_control sc = {
+	struct scan_control sc = {//初始化扫描控制器
 		.nr_to_reclaim = SWAP_CLUSTER_MAX,
 		.gfp_mask = current_gfp_context(gfp_mask),
 		.reclaim_idx = gfp_zone(gfp_mask),
@@ -3780,38 +3780,20 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 	if (freezing(current) || kthread_should_stop())
 		return;
 
+	//把wait加入到kswapd_wait等待队列中，并且设置为可中断状态
 	prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
 
-	/*
-	 * Try to sleep for a short interval. Note that kcompactd will only be
-	 * woken if it is possible to sleep for a short interval. This is
-	 * deliberate on the assumption that if reclaim cannot keep an
-	 * eligible zone balanced that it's also unlikely that compaction will
-	 * succeed.
-	 */
+	//为kswapd睡眠做准备，并且判断kswapd是否可以睡眠
 	if (prepare_kswapd_sleep(pgdat, reclaim_order, highest_zoneidx)) {
-		/*
-		 * Compaction records what page blocks it recently failed to
-		 * isolate pages from and skips them in the future scanning.
-		 * When kswapd is going to sleep, it is reasonable to assume
-		 * that pages and compaction may succeed so reset the cache.
-		 */
-		reset_isolation_suitable(pgdat);
+		reset_isolation_suitable(pgdat);//重置内存碎片整理的时候的一些标记
 
-		/*
-		 * We have freed the memory, now we should compact it to make
-		 * allocation of the requested order possible.
-		 */
+		//唤醒内存碎片整理的进程
 		wakeup_kcompactd(pgdat, alloc_order, highest_zoneidx);
 
-		remaining = schedule_timeout(HZ/10);
+		remaining = schedule_timeout(HZ/10);//尝试睡眠0.1s
 
-		/*
-		 * If woken prematurely then reset kswapd_highest_zoneidx and
-		 * order. The values will either be from a wakeup request or
-		 * the previous request that slept prematurely.
-		 */
-		if (remaining) {
+		if (remaining) {//如果remaining不为0，说明被唤醒了
+			//需要更新kswapd_highest_zoneidx和kswapd_order
 			WRITE_ONCE(pgdat->kswapd_highest_zoneidx,
 					kswapd_highest_zoneidx(pgdat,
 							highest_zoneidx));
@@ -3820,39 +3802,32 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 				WRITE_ONCE(pgdat->kswapd_order, reclaim_order);
 		}
 
-		finish_wait(&pgdat->kswapd_wait, &wait);
+		finish_wait(&pgdat->kswapd_wait, &wait);//kswapd_wait等待队列中移除wait
+		//把wait加入到kswapd_wait等待队列中，并且设置为可中断状态
 		prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
 	}
 
-	/*
-	 * After a short sleep, check if it was a premature sleep. If not, then
-	 * go fully to sleep until explicitly woken up.
-	 */
-	if (!remaining &&
+	//如果刚刚尝试的睡眠没有被唤醒，为kswapd睡眠做准备，并且判断kswapd是否可以睡眠
+	if (!remaining &&	
 	    prepare_kswapd_sleep(pgdat, reclaim_order, highest_zoneidx)) {
 		trace_mm_vmscan_kswapd_sleep(pgdat->node_id);
 
-		/*
-		 * vmstat counters are not perfectly accurate and the estimated
-		 * value for counters such as NR_FREE_PAGES can deviate from the
-		 * true value by nr_online_cpus * threshold. To avoid the zone
-		 * watermarks being breached while under pressure, we reduce the
-		 * per-cpu vmstat threshold while kswapd is awake and restore
-		 * them before going back to sleep.
-		 */
+		//调用calculate_normal_threshold计算内存压力，并且写入pcpu的threshold
 		set_pgdat_percpu_threshold(pgdat, calculate_normal_threshold);
 
-		if (!kthread_should_stop())
-			schedule();
+		if (!kthread_should_stop())//如果任务应该停止
+			schedule();//调度出去
 
 		set_pgdat_percpu_threshold(pgdat, calculate_pressure_threshold);
 	} else {
-		if (remaining)
+		if (remaining)//如果刚刚尝试的睡眠被唤醒了
+			//KSWAPD处于低水位事件加一
 			count_vm_event(KSWAPD_LOW_WMARK_HIT_QUICKLY);
-		else
+		else//否则就是kswapd睡眠没准备好
+			//KSWAPD处于高水位事件加一
 			count_vm_event(KSWAPD_HIGH_WMARK_HIT_QUICKLY);
 	}
-	finish_wait(&pgdat->kswapd_wait, &wait);
+	finish_wait(&pgdat->kswapd_wait, &wait);//kswapd_wait等待队列中移除wait
 }
 
 /*
@@ -3896,6 +3871,7 @@ static int kswapd(void *p)
 
 	WRITE_ONCE(pgdat->kswapd_order, 0);
 	WRITE_ONCE(pgdat->kswapd_highest_zoneidx, MAX_NR_ZONES);
+	//无限循环
 	for ( ; ; ) {
 		bool ret;
 
@@ -3904,40 +3880,30 @@ static int kswapd(void *p)
 							highest_zoneidx);
 
 kswapd_try_sleep:
+		//尝试进入睡眠状态，让出cpu，知道被唤醒
 		kswapd_try_to_sleep(pgdat, alloc_order, reclaim_order,
 					highest_zoneidx);
 
 		/* Read the new order and highest_zoneidx */
-		alloc_order = reclaim_order = READ_ONCE(pgdat->kswapd_order);
-		highest_zoneidx = kswapd_highest_zoneidx(pgdat,
+		alloc_order = reclaim_order = READ_ONCE(pgdat->kswapd_order);//修改申请的内存order
+		highest_zoneidx = kswapd_highest_zoneidx(pgdat,	//可以扫描和回收最高的zone的idx
 							highest_zoneidx);
 		WRITE_ONCE(pgdat->kswapd_order, 0);
 		WRITE_ONCE(pgdat->kswapd_highest_zoneidx, MAX_NR_ZONES);
 
-		ret = try_to_freeze();
-		if (kthread_should_stop())
-			break;
+		ret = try_to_freeze();//尝试冻住这个进程，在系统进入suspend的时候调用
+		if (kthread_should_stop())//如果current->flags表示可以停止
+			break;	//退出死循环
 
-		/*
-		 * We can speed up thawing tasks if we don't call balance_pgdat
-		 * after returning from the refrigerator
-		 */
-		if (ret)
-			continue;
+		if (ret)//如果是冻住后唤醒
+			continue;//从头开始运行，不需要balance_pgdat
 
-		/*
-		 * Reclaim begins at the requested order but if a high-order
-		 * reclaim fails then kswapd falls back to reclaiming for
-		 * order-0. If that happens, kswapd will consider sleeping
-		 * for the order it finished reclaiming at (reclaim_order)
-		 * but kcompactd is woken to compact for the original
-		 * request (alloc_order).
-		 */
 		trace_mm_vmscan_kswapd_wake(pgdat->node_id, highest_zoneidx,
 						alloc_order);
+		//对节点进行回收，用于平衡节点的内存水位，返回回收到的内存的order
 		reclaim_order = balance_pgdat(pgdat, alloc_order,
 						highest_zoneidx);
-		if (reclaim_order < alloc_order)
+		if (reclaim_order < alloc_order)//如果回收到的内存小于申请内存
 			goto kswapd_try_sleep;
 	}
 
@@ -4049,7 +4015,7 @@ int kswapd_run(int nid)
 	if (pgdat->kswapd)
 		return 0;
 
-	pgdat->kswapd = kthread_run(kswapd, pgdat, "kswapd%d", nid);
+	pgdat->kswapd = kthread_run(kswapd, pgdat, "kswapd%d", nid);//创建内核进程kswapd%d
 	if (IS_ERR(pgdat->kswapd)) {
 		/* failure at boot is fatal */
 		BUG_ON(system_state < SYSTEM_RUNNING);
@@ -4078,9 +4044,9 @@ static int __init kswapd_init(void)
 {
 	int nid;
 
-	swap_setup();
-	for_each_node_state(nid, N_MEMORY)
- 		kswapd_run(nid);
+	swap_setup();//根据系统的内存大小设置全局变量page_cluster
+	for_each_node_state(nid, N_MEMORY)//遍历每一个有内存的内存节点
+ 		kswapd_run(nid);//创建内核线程kswapd
 	return 0;
 }
 

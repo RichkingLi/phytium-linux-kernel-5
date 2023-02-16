@@ -2264,27 +2264,27 @@ static bool check_new_pages(struct page *page, unsigned int order)
 inline void post_alloc_hook(struct page *page, unsigned int order,
 				gfp_t gfp_flags)
 {
-	set_page_private(page, 0);
-	set_page_refcounted(page);
+	set_page_private(page, 0);//设置page的order
+	set_page_refcounted(page);//设置page的使用计数为1
 
-	arch_alloc_page(page, order);
+	arch_alloc_page(page, order);//空函数
 	if (debug_pagealloc_enabled_static())
 		kernel_map_pages(page, 1 << order, 1);
-	kasan_alloc_pages(page, order);
-	kernel_poison_pages(page, 1 << order, 1);
-	set_page_owner(page, order, gfp_flags);
+	kasan_alloc_pages(page, order);//KASAN才用到的
+	kernel_poison_pages(page, 1 << order, 1);//CONFIG_PAGE_POISONING才用到的，没有开启，也不知道什么鬼
+	set_page_owner(page, order, gfp_flags);//设置page的owner
 }
 
 static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 							unsigned int alloc_flags)
 {
-	post_alloc_hook(page, order, gfp_flags);
+	post_alloc_hook(page, order, gfp_flags);//设置page的一些信息
 
 	if (!free_pages_prezeroed() && want_init_on_alloc(gfp_flags))
 		kernel_init_free_pages(page, 1 << order);
 
-	if (order && (gfp_flags & __GFP_COMP))
-		prep_compound_page(page, order);
+	if (order && (gfp_flags & __GFP_COMP))//如果是复合页
+		prep_compound_page(page, order);//设置复合页的page的信息
 
 	/*
 	 * page is set pfmemalloc when ALLOC_NO_WATERMARKS was necessary to
@@ -2292,10 +2292,10 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 	 * steps that will free more memory. The caller should avoid the page
 	 * being used for !PFMEMALLOC purposes.
 	 */
-	if (alloc_flags & ALLOC_NO_WATERMARKS)
-		set_page_pfmemalloc(page);
+	if (alloc_flags & ALLOC_NO_WATERMARKS)//如果是忽略水位申请内存，也就是现在这个内存是用于释放内存的
+		set_page_pfmemalloc(page);//修改page的index为-1，表示只能由页分配器在新分配的页上调用
 	else
-		clear_page_pfmemalloc(page);
+		clear_page_pfmemalloc(page);//修改page的index为-1，表示可以随便使用
 }
 
 /*
@@ -4021,35 +4021,34 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 	if (!order)
 		return NULL;
 
-	psi_memstall_enter(&pflags);
+	psi_memstall_enter(&pflags);//空函数
+	//设置current的flags为PF_MEMALLOC，表示在内存碎片整理进行中
 	noreclaim_flag = memalloc_noreclaim_save();
 
+	//尝试压缩页面
 	*compact_result = try_to_compact_pages(gfp_mask, order, alloc_flags, ac,
 								prio, &page);
 
-	memalloc_noreclaim_restore(noreclaim_flag);
-	psi_memstall_leave(&pflags);
+	memalloc_noreclaim_restore(noreclaim_flag);//恢复current的flags，表示compact结束
+	
+	psi_memstall_leave(&pflags);//空函数
 
-	/*
-	 * At least in one zone compaction wasn't deferred or skipped, so let's
-	 * count a compaction stall
-	 */
-	count_vm_event(COMPACTSTALL);
+	count_vm_event(COMPACTSTALL);//统计压缩事件数量加一
 
-	/* Prep a captured page if available */
-	if (page)
+	if (page)//如果压缩页面获取了一些page
+		//清除page的一些标志等信息
 		prep_new_page(page, order, gfp_mask, alloc_flags);
 
-	/* Try get a page from the freelist if available */
-	if (!page)
+	if (!page)//如果压缩页面失败
+		//尝试从伙伴系统的空闲列表中分配物理内存
 		page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 
-	if (page) {
-		struct zone *zone = page_zone(page);
+	if (page) {//如果分配到内存
+		struct zone *zone = page_zone(page);//申请到的物理内存的zone
 
 		zone->compact_blockskip_flush = false;
-		compaction_defer_reset(zone, order, true);
-		count_vm_event(COMPACTSUCCESS);
+		compaction_defer_reset(zone, order, true);//压缩延期时间重置
+		count_vm_event(COMPACTSUCCESS);//压缩事件次数加一
 		return page;
 	}
 
@@ -4057,9 +4056,9 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 	 * It's bad if compaction run occurs and fails. The most likely reason
 	 * is that pages exist, but not enough to satisfy watermarks.
 	 */
-	count_vm_event(COMPACTFAIL);
+	count_vm_event(COMPACTFAIL);//压缩事件次数加一
 
-	cond_resched();
+	cond_resched();//睡眠，调度出去，等待页面回收后继续慢速路径内存申请
 
 	return NULL;
 }
@@ -4076,37 +4075,23 @@ should_compact_retry(struct alloc_context *ac, int order, int alloc_flags,
 	int retries = *compaction_retries;
 	enum compact_priority priority = *compact_priority;
 
-	if (!order)
-		return false;
+	if (!order)//如果只申请一页，
+		return false;//不需要重试，返回0
 
-	if (compaction_made_progress(compact_result))
-		(*compaction_retries)++;
+	if (compaction_made_progress(compact_result))//如果上次内存碎片整理成功
+		(*compaction_retries)++;//那么把重试计数加1
 
-	/*
-	 * compaction considers all the zone as desperately out of memory
-	 * so it doesn't really make much sense to retry except when the
-	 * failure could be caused by insufficient priority
-	 */
-	if (compaction_failed(compact_result))
-		goto check_priority;
+	if (compaction_failed(compact_result))//如果上次内存碎片整理没有成功
+		goto check_priority;//那么提升内存碎片整理的优先级并重试。
 
-	/*
-	 * compaction was skipped because there are not enough order-0 pages
-	 * to work with, so we retry only if it looks like reclaim can help.
-	 */
-	if (compaction_needs_reclaim(compact_result)) {
+	if (compaction_needs_reclaim(compact_result)) {//如果上次内存碎片整理没有整理完毕
+		//检查目标内存区域列表是否至少有一个内存区域有足够多的可用页作为迁移的目的地
 		ret = compaction_zonelist_suitable(ac, order, alloc_flags);
-		goto out;
+		goto out;//如果有那么可以重试
 	}
 
-	/*
-	 * make sure the compaction wasn't deferred or didn't bail out early
-	 * due to locks contention before we declare that we should give up.
-	 * But the next retry should use a higher priority if allowed, so
-	 * we don't just keep bailing out endlessly.
-	 */
-	if (compaction_withdrawn(compact_result)) {
-		goto check_priority;
+	if (compaction_withdrawn(compact_result)) {//如果上次内存碎片整理因为各种原因而放弃
+		goto check_priority;//那么提升内存碎片整理的优先级并重试。
 	}
 
 	/*
@@ -4117,10 +4102,10 @@ should_compact_retry(struct alloc_context *ac, int order, int alloc_flags,
 	 * would need much more detailed feedback from compaction to
 	 * make a better decision.
 	 */
-	if (order > PAGE_ALLOC_COSTLY_ORDER)
-		max_retries /= 4;
-	if (*compaction_retries <= max_retries) {
-		ret = true;
+	if (order > PAGE_ALLOC_COSTLY_ORDER)//如果大于3阶，昂贵的分配
+		max_retries /= 4;//最大重试次数除以4，也就是只有4次
+	if (*compaction_retries <= max_retries) {//如果重试次数小于或等于最大次数
+		ret = true;//那么可以重试
 		goto out;
 	}
 
@@ -4129,13 +4114,13 @@ should_compact_retry(struct alloc_context *ac, int order, int alloc_flags,
 	 * all retries or failed at the lower priorities.
 	 */
 check_priority:
-	min_priority = (order > PAGE_ALLOC_COSTLY_ORDER) ?
-			MIN_COMPACT_COSTLY_PRIORITY : MIN_COMPACT_PRIORITY;
+	min_priority = (order > PAGE_ALLOC_COSTLY_ORDER) ?	//如果大于3阶，昂贵的分配
+			MIN_COMPACT_COSTLY_PRIORITY : MIN_COMPACT_PRIORITY;	//轻量级同步还是完全同步
 
-	if (*compact_priority > min_priority) {
-		(*compact_priority)--;
-		*compaction_retries = 0;
-		ret = true;
+	if (*compact_priority > min_priority) {//如果优先级没有达到最高优先级，
+		(*compact_priority)--;		//那么把优先级提高一级
+		*compaction_retries = 0;	//把重试次数设置为 0 
+		ret = true;				//那么可以重试
 	}
 out:
 	trace_compact_retry(order, priority, compact_result, retries, max_retries, ret);
@@ -4262,22 +4247,23 @@ __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 	unsigned int noreclaim_flag;
 	unsigned long pflags, progress;
 
-	cond_resched();
+	cond_resched();//主动让出cpu
 
 	/* We now go into synchronous reclaim */
 	cpuset_memory_pressure_bump();
-	psi_memstall_enter(&pflags);
-	fs_reclaim_acquire(gfp_mask);
+	psi_memstall_enter(&pflags);//空函数
+	fs_reclaim_acquire(gfp_mask);//空函数
+	//设置current的flags为PF_MEMALLOC，表示在内存碎片整理进行中
 	noreclaim_flag = memalloc_noreclaim_save();
 
 	progress = try_to_free_pages(ac->zonelist, order, gfp_mask,
 								ac->nodemask);
 
-	memalloc_noreclaim_restore(noreclaim_flag);
-	fs_reclaim_release(gfp_mask);
-	psi_memstall_leave(&pflags);
+	memalloc_noreclaim_restore(noreclaim_flag);//恢复current的flags，表示compact结束
+	fs_reclaim_release(gfp_mask);//空函数
+	psi_memstall_leave(&pflags);//空函数
 
-	cond_resched();
+	cond_resched();//主动让出cpu
 
 	return progress;
 }
@@ -4291,24 +4277,25 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 	struct page *page = NULL;
 	bool drained = false;
 
-	*did_some_progress = __perform_reclaim(gfp_mask, order, ac);//直接回收页
+	//直接同步页面回收 
+	*did_some_progress = __perform_reclaim(gfp_mask, order, ac);
 	if (unlikely(!(*did_some_progress)))
 		return NULL;
 
 retry:
-	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
+	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);//进行页面分配操作
 
 	/*
 	 * If an allocation failed after direct reclaim, it could be because
 	 * pages are pinned on the per-cpu lists or in high alloc reserves.
 	 * Shrink them and try again
 	 */
-	if (!page && !drained) {
+	if (!page && !drained) {//分配失败并且还没有重试
 		//把高阶原子类型的页块转换成申请的迁移类型
 		unreserve_highatomic_pageblock(ac, false);
-		drain_all_pages(NULL);
+		drain_all_pages(NULL);//把pcp的物理页放回伙伴系统
 		drained = true;
-		goto retry;
+		goto retry;//再试一次
 	}
 
 	return page;
@@ -4577,149 +4564,105 @@ restart:
 	compaction_retries = 0;
 	no_progress_loops = 0;
 	compact_priority = DEF_COMPACT_PRIORITY;
+	//后面可能会检查cpuset是否允许当前进程从哪些内存节点申请页
 	cpuset_mems_cookie = read_mems_allowed_begin();
 	zonelist_iter_cookie = zonelist_iter_begin();
 
-	/*
-	 * The fast path uses conservative alloc_flags to succeed only until
-	 * kswapd needs to be woken up, and to avoid the cost of setting up
-	 * alloc_flags precisely. So we do that now.
-	 */
+
+	//把分配标志位转换成内部分配标志位
 	alloc_flags = gfp_to_alloc_flags(gfp_mask);
 
-	/*
-	 * We need to recalculate the starting point for the zonelist iterator
-	 * because we might have used different nodemask in the fast path, or
-	 * there was a cpuset modification and we are retrying - otherwise we
-	 * could end up iterating over non-eligible zones endlessly.
-	 */
+	//获取首选的内存区域
 	ac->preferred_zoneref = first_zones_zonelist(ac->zonelist,
 					ac->highest_zoneidx, ac->nodemask);
 	if (!ac->preferred_zoneref->zone)
 		goto nopage;
 
-	if (alloc_flags & ALLOC_KSWAPD)
-		wake_all_kswapds(order, gfp_mask, ac);
+	if (alloc_flags & ALLOC_KSWAPD)//如果调用者允许异步回收页，
+		wake_all_kswapds(order, gfp_mask, ac);//唤醒页回收线程
 
 	/*
 	 * The adjusted alloc_flags might result in immediate success, so try
 	 * that first
 	 */
+	//调整alloc_flags后可能会立即申请成功，所以再尝试一下
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
-	if (page)
-		goto got_pg;
+	if (page)//如果申请到内存
+		goto got_pg;//可以返回了
 
-	/*
-	 * For costly allocations, try direct compaction first, as it's likely
-	 * that we have enough base pages and don't need to reclaim. For non-
-	 * movable high-order allocations, do that as well, as compaction will
-	 * try prevent permanent fragmentation by migrating from blocks of the
-	 * same migratetype.
-	 * Don't try this for allocations that are allowed to ignore
-	 * watermarks, as the ALLOC_NO_WATERMARKS attempt didn't yet happen.
-	 */
-	if (can_direct_reclaim &&
-			(costly_order ||
+
+	if (can_direct_reclaim &&	//如果可以直接回收
+			(costly_order ||	//如果大于3阶或者申请不可移动的连续页
 			   (order > 0 && ac->migratetype != MIGRATE_MOVABLE))
-			&& !gfp_pfmemalloc_allowed(gfp_mask)) {
+			&& !gfp_pfmemalloc_allowed(gfp_mask)) {//不允许使用紧急保留内存
+		//尝试对高阶分配进行异步内存压缩，然后尝试分配
 		page = __alloc_pages_direct_compact(gfp_mask, order,
 						alloc_flags, ac,
 						INIT_COMPACT_PRIORITY,
 						&compact_result);
-		if (page)
-			goto got_pg;
+		if (page)//如果申请到内存
+			goto got_pg;//可以返回了
 
-		/*
-		 * Checks for costly allocations with __GFP_NORETRY, which
-		 * includes some THP page fault allocations
-		 */
+		////如果申请的内存大于等于3阶，并且调用者表示不再尝试
 		if (costly_order && (gfp_mask & __GFP_NORETRY)) {
-			/*
-			 * If allocating entire pageblock(s) and compaction
-			 * failed because all zones are below low watermarks
-			 * or is prohibited because it recently failed at this
-			 * order, fail immediately unless the allocator has
-			 * requested compaction and reclaim retry.
-			 *
-			 * Reclaim is
-			 *  - potentially very expensive because zones are far
-			 *    below their low watermarks or this is part of very
-			 *    bursty high order allocations,
-			 *  - not guaranteed to help because isolate_freepages()
-			 *    may not iterate over freed pages as part of its
-			 *    linear scan, and
-			 *  - unlikely to make entire pageblocks free on its
-			 *    own.
-			 */
+			//如果压缩过了但是失败，或者压缩过了导致一段时间内不会再次压缩
 			if (compact_result == COMPACT_SKIPPED ||
 			    compact_result == COMPACT_DEFERRED)
-				goto nopage;
+				goto nopage;//返回失败
 
-			/*
-			 * Looks like reclaim/compaction is worth trying, but
-			 * sync compaction could be very expensive, so keep
-			 * using async compaction.
-			 */
-			compact_priority = INIT_COMPACT_PRIORITY;
+			compact_priority = INIT_COMPACT_PRIORITY;//使用异步压缩
 		}
 	}
 
 retry:
 	/* Ensure kswapd doesn't accidentally go to sleep as long as we loop */
-	if (alloc_flags & ALLOC_KSWAPD)
+	if (alloc_flags & ALLOC_KSWAPD)//如果调用者允许KSWAPD
 		wake_all_kswapds(order, gfp_mask, ac);
 
+	//如果调用者没有反对CMA分配，则允许CMA分配
 	reserve_flags = __gfp_pfmemalloc_flags(gfp_mask);
 	if (reserve_flags)
 		alloc_flags = current_alloc_flags(gfp_mask, reserve_flags);
 
-	/*
-	 * Reset the nodemask and zonelist iterators if memory policies can be
-	 * ignored. These allocations are high priority and system rather than
-	 * user oriented.
-	 */
+	//如果调用者没有要求使用cpuset，那么重新获取区域列表
 	if (!(alloc_flags & ALLOC_CPUSET) || reserve_flags) {
 		ac->nodemask = NULL;
 		ac->preferred_zoneref = first_zones_zonelist(ac->zonelist,
 					ac->highest_zoneidx, ac->nodemask);
 	}
 
-	/* Attempt with potentially adjusted zonelist and alloc_flags */
+	//重新调整alloc_flags后尝试分配
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 	if (page)
 		goto got_pg;
 
-	/* Caller is not willing to reclaim, we can't balance anything */
-	if (!can_direct_reclaim)
-		goto nopage;
+	if (!can_direct_reclaim)//调用者要求直接分配，不能等待
+		goto nopage;//返回失败
 
-	/* Avoid recursion of direct reclaim */
-	if (current->flags & PF_MEMALLOC)
-		goto nopage;
+	//直接回收页的时候给进程设置了标志位PF_MEMALLOC
+	if (current->flags & PF_MEMALLOC)//如果设置了PF_MEMALLOC，避免递归
+		goto nopage;//返回失败
 
-	/* Try direct reclaim and then allocating */
+	//尝试直接回收页
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
 	if (page)
 		goto got_pg;
 
-	/* Try direct compaction and then allocating */
+	//执行同步模式的内存碎片整理
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
 					compact_priority, &compact_result);
 	if (page)
 		goto got_pg;
 
-	/* Do not loop if specifically requested */
-	if (gfp_mask & __GFP_NORETRY)
+	if (gfp_mask & __GFP_NORETRY)//如果调用者要求不要重试
 		goto nopage;
 
-	/*
-	 * Do not retry costly high order allocations unless they are
-	 * __GFP_RETRY_MAYFAIL
-	 */
+	//如果申请阶数大于3，并且调用者没有要求重试，
 	if (costly_order && !(gfp_mask & __GFP_RETRY_MAYFAIL))
 		goto nopage;
 
+	//如果认为有必要重新尝试回收页
 	if (should_reclaim_retry(gfp_mask, order, ac, alloc_flags,
 				 did_some_progress > 0, &no_progress_loops))
 		goto retry;
@@ -4730,34 +4673,28 @@ retry:
 	 * implementation of the compaction depends on the sufficient amount
 	 * of free memory (see __compaction_suitable)
 	 */
-	if (did_some_progress > 0 &&
-			should_compact_retry(ac, order, alloc_flags,
+	if (did_some_progress > 0 &&	//之前直接回收页有进展
+			should_compact_retry(ac, order, alloc_flags,//如果认为有必要重新尝试压缩
 				compact_result, &compact_priority,
 				&compaction_retries))
 		goto retry;
 
 
-	/*
-	 * Deal with possible cpuset update races or zonelist updates to avoid
-	 * a unnecessary OOM kill.
-	 */
-	if (check_retry_cpuset(cpuset_mems_cookie, ac) ||
-	    check_retry_zonelist(zonelist_iter_cookie))
+	if (check_retry_cpuset(cpuset_mems_cookie, ac) ||	//如果cpuset更新
+	    check_retry_zonelist(zonelist_iter_cookie))	//如果zonelist更新 
 		goto restart;
 
-	/* Reclaim has failed us, start killing things */
+	//使用内存耗尽杀手选择一个进程杀死
 	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
 	if (page)
 		goto got_pg;
 
-	/* Avoid allocations with no watermarks from looping endlessly */
-	if (tsk_is_oom_victim(current) &&
-	    (alloc_flags & ALLOC_OOM ||
-	     (gfp_mask & __GFP_NOMEMALLOC)))
+	if (tsk_is_oom_victim(current) &&	//如果当前进程正在被内存耗尽杀手杀死
+	    (alloc_flags & ALLOC_OOM ||		//调用者允许OOM
+	     (gfp_mask & __GFP_NOMEMALLOC)))	//不允许使用紧急内存
 		goto nopage;
 
-	/* Retry as long as the OOM killer is making progress */
-	if (did_some_progress) {
+	if (did_some_progress) {//如果内存耗尽杀手取得进展
 		no_progress_loops = 0;
 		goto retry;
 	}
@@ -4767,43 +4704,22 @@ nopage:
 	 * Deal with possible cpuset update races or zonelist updates to avoid
 	 * a unnecessary OOM kill.
 	 */
-	if (check_retry_cpuset(cpuset_mems_cookie, ac) ||
-	    check_retry_zonelist(zonelist_iter_cookie))
+	if (check_retry_cpuset(cpuset_mems_cookie, ac) ||	//如果cpuset更新
+	    check_retry_zonelist(zonelist_iter_cookie))		//如果zonelist更新 
 		goto restart;
 
 	/*
 	 * Make sure that __GFP_NOFAIL request doesn't leak out and make sure
 	 * we always retry
 	 */
-	if (gfp_mask & __GFP_NOFAIL) {
-		/*
-		 * All existing users of the __GFP_NOFAIL are blockable, so warn
-		 * of any new users that actually require GFP_NOWAIT
-		 */
-		if (WARN_ON_ONCE(!can_direct_reclaim))
+	if (gfp_mask & __GFP_NOFAIL) {//如果调用者要求不能失败
+		if (WARN_ON_ONCE(!can_direct_reclaim))//同时要求不能失败和不能直接回收页
 			goto fail;
-
-		/*
-		 * PF_MEMALLOC request from this context is rather bizarre
-		 * because we cannot reclaim anything and only can loop waiting
-		 * for somebody to do a work for us
-		 */
+		
 		WARN_ON_ONCE(current->flags & PF_MEMALLOC);
-
-		/*
-		 * non failing costly orders are a hard requirement which we
-		 * are not prepared for much so let's warn about these users
-		 * so that we can identify them and convert them to something
-		 * else.
-		 */
 		WARN_ON_ONCE(order > PAGE_ALLOC_COSTLY_ORDER);
 
-		/*
-		 * Help non-failing allocations by giving them access to memory
-		 * reserves but do not use ALLOC_NO_WATERMARKS because this
-		 * could deplete whole memory reserves which would just make
-		 * the situation worse
-		 */
+		//先使用标志位ALLOC_CPUSET尝试分配，失败再使用ALLOC_HARDER尝试分配
 		page = __alloc_pages_cpuset_fallback(gfp_mask, order, ALLOC_HARDER, ac);
 		if (page)
 			goto got_pg;

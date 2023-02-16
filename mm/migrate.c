@@ -294,14 +294,15 @@ static bool remove_migration_pte(struct page *page, struct vm_area_struct *vma,
 void remove_migration_ptes(struct page *old, struct page *new, bool locked)
 {
 	struct rmap_walk_control rwc = {
-		.rmap_one = remove_migration_pte,
-		.arg = old,
+		////每获取一个vma就会调用一次此函数，
+		.rmap_one = remove_migration_pte,//将一个潜在的迁移pte恢复到一个工作pte条目
+		.arg = old,//remove_migration_pte的最后一个参数
 	};
 
 	if (locked)
-		rmap_walk_locked(new, &rwc);
+		rmap_walk_locked(new, &rwc);//反向映射遍历vma函数
 	else
-		rmap_walk(new, &rwc);
+		rmap_walk(new, &rwc);//反向映射遍历vma函数
 }
 
 /*
@@ -409,18 +410,18 @@ int migrate_page_move_mapping(struct address_space *mapping,
 	int expected_count = expected_page_refs(mapping, page) + extra_count;
 	int nr = thp_nr_pages(page);
 
-	if (!mapping) {
+	if (!mapping) {//如果没有address_space
 		/* Anonymous page without mapping */
-		if (page_count(page) != expected_count)
+		if (page_count(page) != expected_count)//如果page->_count不为1
 			return -EAGAIN;
 
 		/* No turning back from here */
-		newpage->index = page->index;
-		newpage->mapping = page->mapping;
+		newpage->index = page->index;//更新index
+		newpage->mapping = page->mapping;//更新mapping
 		if (PageSwapBacked(page))
 			__SetPageSwapBacked(newpage);
 
-		return MIGRATEPAGE_SUCCESS;
+		return MIGRATEPAGE_SUCCESS;//可以直接进行迁移，返回ok
 	}
 
 	oldzone = page_zone(page);
@@ -437,28 +438,25 @@ int migrate_page_move_mapping(struct address_space *mapping,
 		return -EAGAIN;
 	}
 
-	/*
-	 * Now we know that no one else is looking at the page:
-	 * no turning back from here.
-	 */
-	newpage->index = page->index;
-	newpage->mapping = page->mapping;
+	//这里说明page没有其他进程使用
+	newpage->index = page->index;//更新index
+	newpage->mapping = page->mapping;//更新mapping
 	page_ref_add(newpage, nr); /* add cache reference */
-	if (PageSwapBacked(page)) {
-		__SetPageSwapBacked(newpage);
-		if (PageSwapCache(page)) {
-			SetPageSwapCache(newpage);
-			set_page_private(newpage, page_private(page));
+	if (PageSwapBacked(page)) {//如果旧页不在磁盘中
+		__SetPageSwapBacked(newpage);//设置新页状态不在磁盘中
+		if (PageSwapCache(page)) {//如果旧页在swapcache中
+			SetPageSwapCache(newpage);//设置新页状态在在swapcache中
+			set_page_private(newpage, page_private(page));//设置新页的private
 		}
 	} else {
 		VM_BUG_ON_PAGE(PageSwapCache(page), page);
 	}
 
 	/* Move dirty while page refs frozen and newpage not yet exposed */
-	dirty = PageDirty(page);
+	dirty = PageDirty(page);//如果是脏页
 	if (dirty) {
-		ClearPageDirty(page);
-		SetPageDirty(newpage);
+		ClearPageDirty(page);//清除旧页的脏状态
+		SetPageDirty(newpage);//设置新页的脏状态
 	}
 
 	xas_store(&xas, newpage);
@@ -479,19 +477,9 @@ int migrate_page_move_mapping(struct address_space *mapping,
 	page_ref_unfreeze(page, expected_count - nr);
 
 	xas_unlock(&xas);
-	/* Leave irq disabled to prevent preemption while updating stats */
 
-	/*
-	 * If moved to a different zone then also account
-	 * the page for that zone. Other VM counters will be
-	 * taken care of when we establish references to the
-	 * new page and drop references to the old page.
-	 *
-	 * Note that anonymous pages are accounted for
-	 * via NR_FILE_PAGES and NR_ANON_MAPPED if they
-	 * are mapped to swap space.
-	 */
-	if (newzone != oldzone) {
+	if (newzone != oldzone) {//如果移动到不同的zone
+		//需要修改zone的信息
 		struct lruvec *old_lruvec, *new_lruvec;
 		struct mem_cgroup *memcg;
 
@@ -678,11 +666,11 @@ EXPORT_SYMBOL(migrate_page_states);
 void migrate_page_copy(struct page *newpage, struct page *page)
 {
 	if (PageHuge(page) || PageTransHuge(page))
-		copy_huge_page(newpage, page);
+		copy_huge_page(newpage, page);//把page的内容复制到newpage
 	else
-		copy_highpage(newpage, page);
+		copy_highpage(newpage, page);//把page的内容复制到newpage
 
-	migrate_page_states(newpage, page);
+	migrate_page_states(newpage, page);//将page页的状态复制的newpage
 }
 EXPORT_SYMBOL(migrate_page_copy);
 
@@ -704,15 +692,16 @@ int migrate_page(struct address_space *mapping,
 
 	BUG_ON(PageWriteback(page));	/* Writeback must be complete */
 
+	//替换映射中的页面，就要是page结构体的内容更新
 	rc = migrate_page_move_mapping(mapping, newpage, page, 0);
 
 	if (rc != MIGRATEPAGE_SUCCESS)
 		return rc;
 
 	if (mode != MIGRATE_SYNC_NO_COPY)
-		migrate_page_copy(newpage, page);
+		migrate_page_copy(newpage, page);//将page页的内容复制的newpage
 	else
-		migrate_page_states(newpage, page);
+		migrate_page_states(newpage, page);//将page页的状态复制的newpage
 	return MIGRATEPAGE_SUCCESS;
 }
 EXPORT_SYMBOL(migrate_page);
@@ -907,8 +896,7 @@ static int writeout(struct address_space *mapping, struct page *page)
 static int fallback_migrate_page(struct address_space *mapping,
 	struct page *newpage, struct page *page, enum migrate_mode mode)
 {
-	if (PageDirty(page)) {
-		/* Only writeback pages in full synchronous migration */
+	if (PageDirty(page)) {//如果是脏页
 		switch (mode) {
 		case MIGRATE_SYNC:
 		case MIGRATE_SYNC_NO_COPY:
@@ -916,18 +904,14 @@ static int fallback_migrate_page(struct address_space *mapping,
 		default:
 			return -EBUSY;
 		}
-		return writeout(mapping, page);
+		return writeout(mapping, page);//回写一页以清除脏状态
 	}
 
-	/*
-	 * Buffers may be managed in a filesystem specific way.
-	 * We must have no buffers or drop them.
-	 */
-	if (page_has_private(page) &&
-	    !try_to_release_page(page, GFP_KERNEL))
-		return mode == MIGRATE_SYNC ? -EAGAIN : -EBUSY;
+	if (page_has_private(page) &&	//如果有私有数据
+	    !try_to_release_page(page, GFP_KERNEL))//并且没有办法释放
+		return mode == MIGRATE_SYNC ? -EAGAIN : -EBUSY;//返回错误
 
-	return migrate_page(mapping, newpage, page, mode);
+	return migrate_page(mapping, newpage, page, mode);//迁移单个页面
 }
 
 /*
@@ -946,17 +930,17 @@ static int move_to_new_page(struct page *newpage, struct page *page,
 {
 	struct address_space *mapping;
 	int rc = -EAGAIN;
-	bool is_lru = !__PageMovable(page);
+	bool is_lru = !__PageMovable(page);//如果是lru可移动页
 
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	VM_BUG_ON_PAGE(!PageLocked(newpage), newpage);
 
-	mapping = page_mapping(page);
+	mapping = page_mapping(page);//获取page的address_space
 
-	if (likely(is_lru)) {
-		if (!mapping)
-			rc = migrate_page(mapping, newpage, page, mode);
-		else if (mapping->a_ops->migratepage)
+	if (likely(is_lru)) {//如果是lru
+		if (!mapping)//如果是匿名页
+			rc = migrate_page(mapping, newpage, page, mode);//迁移单个lru页面
+		else if (mapping->a_ops->migratepage)//如果mapping有migratepage方法
 			/*
 			 * Most pages have a mapping and most filesystems
 			 * provide a migratepage callback. Anonymous pages
@@ -965,22 +949,18 @@ static int move_to_new_page(struct page *newpage, struct page *page,
 			 * for page migration.
 			 */
 			rc = mapping->a_ops->migratepage(mapping, newpage,
-							page, mode);
+							page, mode);//调用mapping的migratepage方法
 		else
 			rc = fallback_migrate_page(mapping, newpage,
-							page, mode);
-	} else {
-		/*
-		 * In case of non-lru page, it could be released after
-		 * isolation step. In that case, we shouldn't try migration.
-		 */
+							page, mode);//默认的页面迁移操作
+	} else {//否则是非lru
 		VM_BUG_ON_PAGE(!PageIsolated(page), page);
-		if (!PageMovable(page)) {
+		if (!PageMovable(page)) {//如果page有isolate_page方法
 			rc = MIGRATEPAGE_SUCCESS;
-			__ClearPageIsolated(page);
-			goto out;
+			__ClearPageIsolated(page);//清理隔离标志位
+			goto out;//返回
 		}
-
+		//如果page没有isolate_page方法，并且回调migratepage方法
 		rc = mapping->a_ops->migratepage(mapping, newpage,
 						page, mode);
 		WARN_ON_ONCE(rc == MIGRATEPAGE_SUCCESS &&
@@ -1008,13 +988,13 @@ static int move_to_new_page(struct page *newpage, struct page *page,
 		 * the type to work PageAnon, for example.
 		 */
 		if (!PageMappingFlags(page))
-			page->mapping = NULL;
+			page->mapping = NULL;//清除旧页的映射
 
-		if (likely(!is_zone_device_page(newpage))) {
+		if (likely(!is_zone_device_page(newpage))) {//如果不是设备内存
 			int i, nr = compound_nr(newpage);
 
 			for (i = 0; i < nr; i++)
-				flush_dcache_page(newpage + i);
+				flush_dcache_page(newpage + i);//清除旧页的cache
 		}
 	}
 out:
@@ -1027,38 +1007,19 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 	int rc = -EAGAIN;
 	int page_was_mapped = 0;
 	struct anon_vma *anon_vma = NULL;
-	bool is_lru = !__PageMovable(page);
+	bool is_lru = !__PageMovable(page);//__PageMovable返回真就表示页是非LRU可移动页
 
-	if (!trylock_page(page)) {
-		if (!force || mode == MIGRATE_ASYNC)
-			goto out;
+	if (!trylock_page(page)) {//尝试锁住旧的物理页。如果失败
+		if (!force || mode == MIGRATE_ASYNC)//如果其他进程持有锁
+			goto out;	//返回失败
 
-		/*
-		 * It's not safe for direct compaction to call lock_page.
-		 * For example, during page readahead pages are added locked
-		 * to the LRU. Later, when the IO completes the pages are
-		 * marked uptodate and unlocked. However, the queueing
-		 * could be merging multiple pages for one bio (e.g.
-		 * mpage_readahead). If an allocation happens for the
-		 * second or third page, the process can end up locking
-		 * the same page twice and deadlocking. Rather than
-		 * trying to be clever about what pages can be locked,
-		 * avoid the use of lock_page for direct compaction
-		 * altogether.
-		 */
-		if (current->flags & PF_MEMALLOC)
-			goto out;
+		if (current->flags & PF_MEMALLOC)//当前进程正在申请内存
+			goto out;//避免死锁，返回
 
-		lock_page(page);
+		lock_page(page);//加锁
 	}
 
-	if (PageWriteback(page)) {
-		/*
-		 * Only in the case of a full synchronous migration is it
-		 * necessary to wait for PageWriteback. In the async case,
-		 * the retry loop is too short and in the sync-light case,
-		 * the overhead of stalling is too much
-		 */
+	if (PageWriteback(page)) {//如果页正在回写到存储设备
 		switch (mode) {
 		case MIGRATE_SYNC:
 		case MIGRATE_SYNC_NO_COPY:
@@ -1067,99 +1028,57 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 			rc = -EBUSY;
 			goto out_unlock;
 		}
-		if (!force)
-			goto out_unlock;
-		wait_on_page_writeback(page);
+		if (!force)//没有强制迁移
+			goto out_unlock;//返回
+		wait_on_page_writeback(page);//等待页回写完成
 	}
 
-	/*
-	 * By try_to_unmap(), page->mapcount goes down to 0 here. In this case,
-	 * we cannot notice that anon_vma is freed while we migrates a page.
-	 * This get_anon_vma() delays freeing anon_vma pointer until the end
-	 * of migration. File cache pages are no problem because of page_lock()
-	 * File Caches may use write_page() or lock_page() in migration, then,
-	 * just care Anon page here.
-	 *
-	 * Only page_get_anon_vma() understands the subtleties of
-	 * getting a hold on an anon_vma from outside one of its mms.
-	 * But if we cannot get anon_vma, then we won't need it anyway,
-	 * because that implies that the anon page is no longer mapped
-	 * (and cannot be remapped so long as we hold the page lock).
-	 */
-	if (PageAnon(page) && !PageKsm(page))
-		anon_vma = page_get_anon_vma(page);
+	if (PageAnon(page) && !PageKsm(page))//如果是匿名页但不是内核共享页
+		anon_vma = page_get_anon_vma(page);//获取page的anon_vma
 
-	/*
-	 * Block others from accessing the new page when we get around to
-	 * establishing additional references. We are usually the only one
-	 * holding a reference to newpage at this point. We used to have a BUG
-	 * here if trylock_page(newpage) fails, but would like to allow for
-	 * cases where there might be a race with the previous use of newpage.
-	 * This is much like races on refcount of oldpage: just don't BUG().
-	 */
-	if (unlikely(!trylock_page(newpage)))
+	if (unlikely(!trylock_page(newpage)))//加锁
 		goto out_unlock;
 
-	if (unlikely(!is_lru)) {
-		rc = move_to_new_page(newpage, page, mode);
+	if (unlikely(!is_lru)) {//如果是非LRU可移动页
+		rc = move_to_new_page(newpage, page, mode);//把页移动到新页
 		goto out_unlock_both;
 	}
 
-	/*
-	 * Corner case handling:
-	 * 1. When a new swap-cache page is read into, it is added to the LRU
-	 * and treated as swapcache but it has no rmap yet.
-	 * Calling try_to_unmap() against a page->mapping==NULL page will
-	 * trigger a BUG.  So handle it here.
-	 * 2. An orphaned page (see truncate_complete_page) might have
-	 * fs-private metadata. The page can be picked up due to memory
-	 * offlining.  Everywhere else except page reclaim, the page is
-	 * invisible to the vm, so the page can not be migrated.  So try to
-	 * free the metadata, so the page can be freed.
-	 */
-	if (!page->mapping) {
+	//这里就是LRU可移动页
+	if (!page->mapping) {//如果页没有映射
 		VM_BUG_ON_PAGE(PageAnon(page), page);
-		if (page_has_private(page)) {
-			try_to_free_buffers(page);
+		if (page_has_private(page)) {//如果页有私有内容，说明是文件页缓存
+			try_to_free_buffers(page);//释放页缓存
 			goto out_unlock_both;
 		}
-	} else if (page_mapped(page)) {
-		/* Establish migration ptes */
+	} else if (page_mapped(page)) {//如果页有映射
 		VM_BUG_ON_PAGE(PageAnon(page) && !PageKsm(page) && !anon_vma,
 				page);
+		//从进程的页表中删除虚拟页到这个物理页的映射
 		try_to_unmap(page, TTU_MIGRATION|TTU_IGNORE_MLOCK);
-		page_was_mapped = 1;
+		page_was_mapped = 1;//记录页被映射了
 	}
 
-	if (!page_mapped(page))
-		rc = move_to_new_page(newpage, page, mode);
+	if (!page_mapped(page))//删除映射成功
+		rc = move_to_new_page(newpage, page, mode);//把页移动到新页
 
-	if (page_was_mapped)
-		remove_migration_ptes(page,
+	if (page_was_mapped)//如果页之前是被映射的
+		remove_migration_ptes(page,	//把页表项设置为特殊的迁移页表项
 			rc == MIGRATEPAGE_SUCCESS ? newpage : page, false);
 
 out_unlock_both:
-	unlock_page(newpage);
+	unlock_page(newpage);//解锁新的物理页
 out_unlock:
 	/* Drop an anon_vma reference if we took one */
 	if (anon_vma)
 		put_anon_vma(anon_vma);
-	unlock_page(page);
+	unlock_page(page);//解锁旧的物理页
 out:
-	/*
-	 * If migration is successful, decrease refcount of the newpage
-	 * which will not free the page because new page owner increased
-	 * refcounter. As well, if it is LRU page, add the page to LRU
-	 * list in here. Use the old state of the isolated source page to
-	 * determine if we migrated a LRU page. newpage was already unlocked
-	 * and possibly modified by its owner - don't rely on the page
-	 * state.
-	 */
-	if (rc == MIGRATEPAGE_SUCCESS) {
-		if (unlikely(!is_lru))
-			put_page(newpage);
-		else
-			putback_lru_page(newpage);
+	if (rc == MIGRATEPAGE_SUCCESS) {//如果迁移成功
+		if (unlikely(!is_lru))//如果是非LRU可移动页
+			put_page(newpage);//新的物理页引用计数减一
+		else//如果是LRU可移动页
+			putback_lru_page(newpage);//把新的物理页插入LRU链表
 	}
 
 	return rc;
@@ -1193,17 +1112,18 @@ static int unmap_and_move(new_page_t get_new_page,
 		}
 		goto out;
 	}
-
+	//从空闲扫描器的空闲页链表中取一个空闲页，
+	//如果空闲页链表是空的，空闲扫描器扫描空闲页并将之添加到空闲页链表中。
 	newpage = get_new_page(page, private);
 	if (!newpage)
 		return -ENOMEM;
 
-	rc = __unmap_and_move(page, newpage, force, mode);
-	if (rc == MIGRATEPAGE_SUCCESS)
-		set_page_owner_migrate_reason(newpage, reason);
+	rc = __unmap_and_move(page, newpage, force, mode);//把可移动页移到空闲页
+	if (rc == MIGRATEPAGE_SUCCESS)//启动成功
+		set_page_owner_migrate_reason(newpage, reason);//设置迁移的原因
 
 out:
-	if (rc != -EAGAIN) {
+	if (rc != -EAGAIN) {//重试
 		/*
 		 * A page that has been migrated has all references
 		 * removed and will be freed. A page that has not been
@@ -1216,7 +1136,7 @@ out:
 		 * not accounted to NR_ISOLATED_*. They can be recognized
 		 * as __PageMovable
 		 */
-		if (likely(!__PageMovable(page)))
+		if (likely(!__PageMovable(page)))//如果是可移动页
 			mod_node_page_state(page_pgdat(page), NR_ISOLATED_ANON +
 					page_is_file_lru(page), -thp_nr_pages(page));
 	}
@@ -1226,15 +1146,15 @@ out:
 	 * isolation. Otherwise, restore the page to right list unless
 	 * we want to retry.
 	 */
-	if (rc == MIGRATEPAGE_SUCCESS) {
+	if (rc == MIGRATEPAGE_SUCCESS) {//如果迁移成功
 		if (reason != MR_MEMORY_FAILURE)
 			/*
 			 * We release the page in page_handle_poison.
 			 */
-			put_page(page);
+			put_page(page);//释放page的引用，引用计数减一
 	} else {
-		if (rc != -EAGAIN) {
-			if (likely(!__PageMovable(page))) {
+		if (rc != -EAGAIN) {//如果迁移失败，需要重试
+			if (likely(!__PageMovable(page))) {//如果是可移动页
 				putback_lru_page(page);
 				goto put_new;
 			}
@@ -1436,11 +1356,11 @@ int migrate_pages(struct list_head *from, new_page_t get_new_page,
 
 	if (!swapwrite)
 		current->flags |= PF_SWAPWRITE;
-
+	//尝试10次后返回
 	for (pass = 0; pass < 10 && (retry || thp_retry); pass++) {
 		retry = 0;
 		thp_retry = 0;
-
+		//遍历每一个页
 		list_for_each_entry_safe(page, page2, from, lru) {
 retry:
 			/*
@@ -1452,11 +1372,13 @@ retry:
 			nr_subpages = thp_nr_pages(page);
 			cond_resched();
 
-			if (PageHuge(page))
+			if (PageHuge(page))//如果是hugetlbfs巨型页
+				//把可移动页移到空闲页
 				rc = unmap_and_move_huge_page(get_new_page,
 						put_new_page, private, page,
 						pass > 2, mode, reason);
-			else
+			else//否则就是普通页或透明巨型页
+				//把可移动页移到空闲页
 				rc = unmap_and_move(get_new_page, put_new_page,
 						private, page, pass > 2, mode,
 						reason);

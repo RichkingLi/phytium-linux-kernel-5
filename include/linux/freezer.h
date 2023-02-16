@@ -62,7 +62,7 @@ static inline bool try_to_freeze_unsafe(void)
 
 static inline bool try_to_freeze(void)
 {
-	if (!(current->flags & PF_NOFREEZE))
+	if (!(current->flags & PF_NOFREEZE))//如果这个线程不应该被冻结
 		debug_check_no_locks_held();
 	return try_to_freeze_unsafe();
 }

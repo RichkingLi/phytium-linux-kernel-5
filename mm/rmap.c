@@ -1968,11 +1968,11 @@ done:
 void rmap_walk(struct page *page, struct rmap_walk_control *rwc)
 {
 	if (unlikely(PageKsm(page)))
-		rmap_walk_ksm(page, rwc);
+		rmap_walk_ksm(page, rwc);//反向映射遍历内核共享页所在的vma
 	else if (PageAnon(page))
-		rmap_walk_anon(page, rwc, false);
+		rmap_walk_anon(page, rwc, false);//反向映射遍历匿名页所在的vma
 	else
-		rmap_walk_file(page, rwc, false);
+		rmap_walk_file(page, rwc, false);//反向映射遍历文件页所在的vma
 }
 
 /* Like rmap_walk, but caller holds relevant rmap lock */

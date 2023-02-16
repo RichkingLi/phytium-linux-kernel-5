@@ -16,14 +16,14 @@
 
 void copy_highpage(struct page *to, struct page *from)
 {
-	void *kto = page_address(to);
-	void *kfrom = page_address(from);
+	void *kto = page_address(to);//计算虚拟地址
+	void *kfrom = page_address(from);//计算虚拟地址
 
-	copy_page(kto, kfrom);
+	copy_page(kto, kfrom);//调用memcpy进行内容的复制
 
 	if (system_supports_mte() && test_bit(PG_mte_tagged, &from->flags)) {
 		set_bit(PG_mte_tagged, &to->flags);
-		mte_copy_page_tags(kto, kfrom);
+		mte_copy_page_tags(kto, kfrom);//空函数
 	}
 }
 EXPORT_SYMBOL(copy_highpage);

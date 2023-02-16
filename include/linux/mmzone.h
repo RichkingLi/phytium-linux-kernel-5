@@ -557,9 +557,9 @@ struct zone {
 	 * last failure is tracked with compact_considered.
 	 * compact_order_failed is the minimum compaction failed order.
 	 */
-	unsigned int		compact_considered;
-	unsigned int		compact_defer_shift;
-	int			compact_order_failed;
+	unsigned int		compact_considered;//记录内存碎片整理推迟的次数
+	unsigned int		compact_defer_shift;//记录内存碎片整理推迟的最大次数以2为底的对数
+	int			compact_order_failed;//记录内存碎片整理失败时的申请阶数
 #endif
 
 #if defined CONFIG_COMPACTION || defined CONFIG_CMA
