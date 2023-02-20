@@ -2169,7 +2169,7 @@ static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 		return 0;
 	}
 
-	return shrink_inactive_list(nr_to_scan, lruvec, sc, lru);
+	return shrink_inactive_list(nr_to_scan, lruvec, sc, lru);//回收不活动页
 }
 
 /*
@@ -2442,6 +2442,7 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 	struct blk_plug plug;
 	bool scan_adjusted;
 
+	//计算需要扫描多少个不活动匿名页、活动匿名页、不活动文件页和活动文件页
 	get_scan_count(lruvec, sc, nr);
 
 	/* Record the original scan target for proportional adjustments later */
@@ -2471,7 +2472,7 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 			if (nr[lru]) {
 				nr_to_scan = min(nr[lru], SWAP_CLUSTER_MAX);
 				nr[lru] -= nr_to_scan;
-
+				//回收不活动页
 				nr_reclaimed += shrink_list(lru, nr_to_scan,
 							    lruvec, sc);
 			}
@@ -2541,6 +2542,7 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 	 * rebalance the anon lru active/inactive ratio.
 	 */
 	if (total_swap_pages && inactive_is_low(lruvec, LRU_INACTIVE_ANON))
+		//把一部分活动页转移到不活动链表中
 		shrink_active_list(SWAP_CLUSTER_MAX, lruvec,
 				   sc, LRU_ACTIVE_ANON);
 }
@@ -2659,9 +2661,9 @@ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
 
 		reclaimed = sc->nr_reclaimed;
 		scanned = sc->nr_scanned;
-
+		//回收lru链表不活动页内存
 		shrink_lruvec(lruvec, sc);
-
+		//回收slab内存
 		shrink_slab(sc->gfp_mask, pgdat->node_id, memcg,
 			    sc->priority);
 
@@ -2924,14 +2926,14 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		sc->gfp_mask |= __GFP_HIGHMEM;
 		sc->reclaim_idx = gfp_zone(sc->gfp_mask);
 	}
-
+	//遍历zonelist的每一个zone
 	for_each_zone_zonelist_nodemask(zone, z, zonelist,
 					sc->reclaim_idx, sc->nodemask) {
 		/*
 		 * Take care memory controller reclaiming has small influence
 		 * to global LRU.
 		 */
-		if (!cgroup_reclaim(sc)) {
+		if (!cgroup_reclaim(sc)) {//如果sc没有达到cgroup的极限
 			if (!cpuset_zone_allowed(zone,
 						 GFP_KERNEL | __GFP_HARDWALL))
 				continue;
@@ -2945,11 +2947,11 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 			 * noticeable problem, like transparent huge
 			 * page allocations.
 			 */
-			if (IS_ENABLED(CONFIG_COMPACTION) &&
-			    sc->order > PAGE_ALLOC_COSTLY_ORDER &&
-			    compaction_ready(zone, sc)) {
+			if (IS_ENABLED(CONFIG_COMPACTION) &&	//如果可以内存碎片整理
+			    sc->order > PAGE_ALLOC_COSTLY_ORDER &&	//高阶内存的回收
+			    compaction_ready(zone, sc)) {	//内存碎片整理工作已经准备好了
 				sc->compaction_ready = true;
-				continue;
+				continue;//已经有足够的空闲内存用于压缩，就不要再释放了。
 			}
 
 			/*
@@ -2958,8 +2960,8 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 			 * node may be shrunk multiple times but in that case
 			 * the user prefers lower zones being preserved.
 			 */
-			if (zone->zone_pgdat == last_pgdat)
-				continue;
+			if (zone->zone_pgdat == last_pgdat)//如果是最后一个zone_pgdat
+				continue;//一般都是重要的zone，不要回收了
 
 			/*
 			 * This steals pages from memory cgroups over softlimit
@@ -2980,7 +2982,7 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 		if (zone->zone_pgdat == last_pgdat)
 			continue;
 		last_pgdat = zone->zone_pgdat;
-		shrink_node(zone->zone_pgdat, sc);
+		shrink_node(zone->zone_pgdat, sc);//回收内存节点中的页
 	}
 
 	/*
@@ -3028,30 +3030,30 @@ static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 retry:
 	delayacct_freepages_start();
 
-	if (!cgroup_reclaim(sc))
+	if (!cgroup_reclaim(sc))//如果sc没有达到cgroup的极限
+		//计数加一，什么计数，我也不知道
 		__count_zid_vm_events(ALLOCSTALL, sc->reclaim_idx, 1);
 
 	do {
+		//通过回收优先级计算内存压力
 		vmpressure_prio(sc->gfp_mask, sc->target_mem_cgroup,
 				sc->priority);
-		sc->nr_scanned = 0;
-		shrink_zones(zonelist, sc);
+		sc->nr_scanned = 0;//初始化扫描计数
+		shrink_zones(zonelist, sc);//从zone中进行直接回收
 
+		//如果回收到的页面大于需要的页面
 		if (sc->nr_reclaimed >= sc->nr_to_reclaim)
-			break;
+			break;//退出循环
 
-		if (sc->compaction_ready)
-			break;
+		if (sc->compaction_ready)//如果内存碎片整理准备好了
+			break;//退出循环
 
-		/*
-		 * If we're getting trouble reclaiming, start doing
-		 * writepage even in laptop mode.
-		 */
-		if (sc->priority < DEF_PRIORITY - 2)
-			sc->may_writepage = 1;
+		if (sc->priority < DEF_PRIORITY - 2)//如果回收页面很小了
+			sc->may_writepage = 1;//设置允许回写
 	} while (--sc->priority >= 0);
 
 	last_pgdat = NULL;
+	//扫描zonelist里面的每一个区域，
 	for_each_zone_zonelist_nodemask(zone, z, zonelist, sc->reclaim_idx,
 					sc->nodemask) {
 		if (zone->zone_pgdat == last_pgdat)
@@ -3062,21 +3064,21 @@ retry:
 
 		if (cgroup_reclaim(sc)) {
 			struct lruvec *lruvec;
-
+			//获取一个memcg的lru列表向量
 			lruvec = mem_cgroup_lruvec(sc->target_mem_cgroup,
 						   zone->zone_pgdat);
-			clear_bit(LRUVEC_CONGESTED, &lruvec->flags);
+			clear_bit(LRUVEC_CONGESTED, &lruvec->flags);//清除lru链表的脏标志位
 		}
 	}
 
-	delayacct_freepages_end();
+	delayacct_freepages_end();//完成时间戳和计数器的统计
 
-	if (sc->nr_reclaimed)
-		return sc->nr_reclaimed;
+	if (sc->nr_reclaimed)//如果直接回收页
+		return sc->nr_reclaimed;//返回直接回收到的页数量
 
-	/* Aborted reclaim to try compaction? don't OOM, then */
+	//回收不到页面，但是内存碎片整理准备好了
 	if (sc->compaction_ready)
-		return 1;
+		return 1;//尝试压缩
 
 	/*
 	 * We make inactive:active ratio decisions based on the node's
@@ -3263,21 +3265,17 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 	BUILD_BUG_ON(DEF_PRIORITY > S8_MAX);
 	BUILD_BUG_ON(MAX_NR_ZONES > S8_MAX);
 
-	/*
-	 * Do not enter reclaim if fatal signal was delivered while throttled.
-	 * 1 is returned so that the page allocator does not OOM kill at this
-	 * point.
-	 */
+	//如果在节流期间传递了致命信号，不应该进行页面直接回收，而是kswap
 	if (throttle_direct_reclaim(sc.gfp_mask, zonelist, nodemask))
 		return 1;
 
-	set_task_reclaim_state(current, &sc.reclaim_state);
+	set_task_reclaim_state(current, &sc.reclaim_state);//设置current状态为正在回收内存
 	trace_mm_vmscan_direct_reclaim_begin(order, sc.gfp_mask);
 
-	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);
+	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);//真正的尝试释放页面
 
 	trace_mm_vmscan_direct_reclaim_end(nr_reclaimed);
-	set_task_reclaim_state(current, NULL);
+	set_task_reclaim_state(current, NULL);//恢复current状态
 
 	return nr_reclaimed;
 }

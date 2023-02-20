@@ -4256,6 +4256,7 @@ __perform_reclaim(gfp_t gfp_mask, unsigned int order,
 	//设置current的flags为PF_MEMALLOC，表示在内存碎片整理进行中
 	noreclaim_flag = memalloc_noreclaim_save();
 
+	//尝试释放页面
 	progress = try_to_free_pages(ac->zonelist, order, gfp_mask,
 								ac->nodemask);
 
