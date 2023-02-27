@@ -110,7 +110,7 @@ SYM_CODE_START(primary_entry)
 	adrp	x23, __PHYS_OFFSET
 	and	x23, x23, MIN_KIMG_ALIGN - 1	// KASLR offset, defaults to 0
 	bl	set_cpu_boot_mode_flag		//把其他cpu都配置成跟cpu0同样的特权等级
-	bl	__create_page_tables		//创建页表
+	bl	__create_page_tables		//创建页表映射
 	/*
 	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
 	 * details.
@@ -242,11 +242,13 @@ SYM_CODE_END(preserve_boot_args)
  * Corrupts:	tbl, rtbl, vend, istart, iend, tmp, count, sv
  */
 	.macro map_memory, tbl, rtbl, vstart, vend, flags, phys, pgds, istart, iend, tmp, count, sv
-	sub \vend, \vend, #1
-	add \rtbl, \tbl, #PAGE_SIZE
+	sub \vend, \vend, #1	//虚拟地址减一
+	add \rtbl, \tbl, #PAGE_SIZE	//第一级页表项的地址，是页全局基地址的下一页
 	mov \sv, \rtbl
 	mov \count, #0
+	//compute_indices是用来计算vstart和vend对应的 pgtable level的index的，两者之差保存在count中
 	compute_indices \vstart, \vend, #PGDIR_SHIFT, \pgds, \istart, \iend, \count
+	//populate_entries最终建立指向下一级的映射或者last level映射
 	populate_entries \tbl, \rtbl, \istart, \iend, #PMD_TYPE_TABLE, #PAGE_SIZE, \tmp
 	mov \tbl, \sv
 	mov \sv, \rtbl
@@ -277,7 +279,7 @@ SYM_CODE_END(preserve_boot_args)
  *     been enabled
  */
 SYM_FUNC_START_LOCAL(__create_page_tables)
-	mov	x28, lr
+	mov	x28, lr	//lr是连接寄存器
 
 	/*
 	 * Invalidate the init page tables to avoid potential dirty cache lines
@@ -285,18 +287,20 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	 * the kernel image, and thus are clean to the PoC per the boot
 	 * protocol.
 	 */
-	adrp	x0, init_pg_dir
-	adrp	x1, init_pg_end
+	adrp	x0, init_pg_dir	//获取内核init页表的基地址
+	adrp	x1, init_pg_end	//获取内核init页表的基地址
 	sub	x1, x1, x0
-	bl	__inval_dcache_area
+	bl	__inval_dcache_area	//清除Dcache
 
 	/*
 	 * Clear the init page tables.
 	 */
+	//把init_pg_dir到init_pg_end这段内存清零
+	//也就是把内核页表清零
 	adrp	x0, init_pg_dir
 	adrp	x1, init_pg_end
 	sub	x1, x1, x0
-1:	stp	xzr, xzr, [x0], #16
+1:	stp	xzr, xzr, [x0], #16	//把0写入以x0为地址的内存中，然后x0自增16
 	stp	xzr, xzr, [x0], #16
 	stp	xzr, xzr, [x0], #16
 	stp	xzr, xzr, [x0], #16
@@ -308,21 +312,22 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	/*
 	 * Create the identity mapping.
 	 */
-	adrp	x0, idmap_pg_dir
-	adrp	x3, __idmap_text_start		// __pa(__idmap_text_start)
+	//创建恒等映射，也就是虚拟地址和物理地址相同
+	adrp	x0, idmap_pg_dir	//恒等映射的页全局目录的起始地址
+	adrp	x3, __idmap_text_start		// 恒等映射代码节的起始地址
 
-#ifdef CONFIG_ARM64_VA_BITS_52
+#ifdef CONFIG_ARM64_VA_BITS_52	//不支持，不用看
 	mrs_s	x6, SYS_ID_AA64MMFR2_EL1
 	and	x6, x6, #(0xf << ID_AA64MMFR2_LVA_SHIFT)
 	mov	x5, #52
 	cbnz	x6, 1f
 #endif
-	mov	x5, #VA_BITS_MIN
+	mov	x5, #VA_BITS_MIN	//虚拟地址位数
 1:
-	adr_l	x6, vabits_actual
-	str	x5, [x6]
+	adr_l	x6, vabits_actual	//获取PC到vabits_actual的相对偏移地址
+	str	x5, [x6]		//定位PC的虚拟地址
 	dmb	sy
-	dc	ivac, x6		// Invalidate potentially stale cache line
+	dc	ivac, x6		// 使x6所在的dcache失效
 
 	/*
 	 * VA_BITS may be too small to allow for an ID mapping to be created
@@ -336,13 +341,14 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	 * this number conveniently equals the number of leading zeroes in
 	 * the physical address of __idmap_text_end.
 	 */
-	adrp	x5, __idmap_text_end
-	clz	x5, x5
+	//T0SZ决定了输出的物理地址位数，这里查看其是否足够覆盖物理地址
+	adrp	x5, __idmap_text_end	//获取__idmap_text_end的页基地址
+	clz	x5, x5	//计算x5高位0的个数
 	cmp	x5, TCR_T0SZ(VA_BITS_MIN) // default T0SZ small enough?
 	b.ge	1f			// .. then skip VA range extension
 
-	adr_l	x6, idmap_t0sz
-	str	x5, [x6]
+	adr_l	x6, idmap_t0sz	//计算idmap_t0sz的页内偏移
+	str	x5, [x6]		//把x5的数据写入以x6为地址的内存中
 	dmb	sy
 	dc	ivac, x6		// Invalidate potentially stale cache line
 
@@ -362,7 +368,7 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 #endif
 
 	mov	x4, EXTRA_PTRS
-	create_table_entry x0, x3, EXTRA_SHIFT, x4, x5, x6
+	create_table_entry x0, x3, EXTRA_SHIFT, x4, x5, x6	//配置额外的页表
 #else
 	/*
 	 * If VA_BITS == 48, we don't have to configure an additional
@@ -372,23 +378,24 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	str_l	x4, idmap_ptrs_per_pgd, x5
 #endif
 1:
-	ldr_l	x4, idmap_ptrs_per_pgd
+	ldr_l	x4, idmap_ptrs_per_pgd	//取idmap_ptrs_per_pgd的页内偏移到x4中
 	mov	x5, x3				// __pa(__idmap_text_start)
 	adr_l	x6, __idmap_text_end		// __pa(__idmap_text_end)
 
-	map_memory x0, x1, x3, x6, x7, x3, x4, x10, x11, x12, x13, x14	
+	map_memory x0, x1, x3, x6, x7, x3, x4, x10, x11, x12, x13, x14	//映射，写入页表
 
 	/*
 	 * Map the kernel image (starting with PHYS_OFFSET).
 	 */
-	adrp	x0, init_pg_dir
-	mov_q	x5, KIMAGE_VADDR		// compile time __va(_text)
+	//内核镜像映射
+	adrp	x0, init_pg_dir			//页表基地址
+	mov_q	x5, KIMAGE_VADDR		// 代码段的虚拟地址
 	add	x5, x5, x23			// add KASLR displacement
-	mov	x4, PTRS_PER_PGD
-	adrp	x6, _end			// runtime __pa(_end)
-	adrp	x3, _text			// runtime __pa(_text)
-	sub	x6, x6, x3			// _end - _text
-	add	x6, x6, x5			// runtime __va(_end)
+	mov	x4, PTRS_PER_PGD	//PGD表项的数量
+	adrp	x6, _end			// 代码段的物理地址末端
+	adrp	x3, _text			// 代码段的物理地址起始位置
+	sub	x6, x6, x3			// 代码段长度
+	add	x6, x6, x5			// 代码段虚拟地址末端
 
 	map_memory x0, x1, x5, x6, x7, x3, x4, x10, x11, x12, x13, x14	//创建内核镜像的映射关系
 
@@ -402,14 +409,14 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	adrp	x0, idmap_pg_dir
 	adrp	x1, idmap_pg_end
 	sub	x1, x1, x0
-	bl	__inval_dcache_area
+	bl	__inval_dcache_area	//使dcache失效
 
 	adrp	x0, init_pg_dir
 	adrp	x1, init_pg_end
 	sub	x1, x1, x0
-	bl	__inval_dcache_area
+	bl	__inval_dcache_area	//使dcache失效
 
-	ret	x28
+	ret	x28	//返回
 SYM_FUNC_END(__create_page_tables)
 
 /*
@@ -418,38 +425,38 @@ SYM_FUNC_END(__create_page_tables)
  *   x0 = __PHYS_OFFSET
  */
 SYM_FUNC_START_LOCAL(__primary_switched)
-	adrp	x4, init_thread_union
-	add	sp, x4, #THREAD_SIZE
-	adr_l	x5, init_task
-	msr	sp_el0, x5			// Save thread_info
+	adrp	x4, init_thread_union	//init_thread_union地址保存在x4中，它存放了init进程结构体
+	add	sp, x4, #THREAD_SIZE	//设置sp指针为init_thread_union偏移THREAD_SIZE
+	adr_l	x5, init_task		//init_task地址保存在x5
+	msr	sp_el0, x5			//保存当前进程描述符到sp_el0，使用用户态的堆栈，说明是用户态程序
 
 #ifdef CONFIG_ARM64_PTR_AUTH
 	__ptrauth_keys_init_cpu	x5, x6, x7, x8
 #endif
 
-	adr_l	x8, vectors			// load VBAR_EL1 with virtual
-	msr	vbar_el1, x8			// vector table address
+	adr_l	x8, vectors			// 读取vectors的地址
+	msr	vbar_el1, x8			// 设置异常向量表
 	isb
 
-	stp	xzr, x30, [sp, #-16]!
-	mov	x29, sp
+	stp	xzr, x30, [sp, #-16]!	//把将xzr和保存在x30中的链接地址入栈
+	mov	x29, sp		//将栈指针保存到x29
 
 #ifdef CONFIG_SHADOW_CALL_STACK
 	adr_l	scs_sp, init_shadow_call_stack	// Set shadow call stack
 #endif
 
-	str_l	x21, __fdt_pointer, x5		// Save FDT pointer
+	str_l	x21, __fdt_pointer, x5		//将FDT地址保存到__fdt_pointer变量
 
 	ldr_l	x4, kimage_vaddr		// Save the offset between
 	sub	x4, x4, x0			// the kernel virtual and
-	str_l	x4, kimage_voffset, x5		// physical mappings
+	str_l	x4, kimage_voffset, x5		//将kimage的虚拟地址和物理地址的偏移保存到kimage_voffset中
 
 	// Clear BSS
 	adr_l	x0, __bss_start
 	mov	x1, xzr
 	adr_l	x2, __bss_stop
 	sub	x2, x2, x0
-	bl	__pi_memset
+	bl	__pi_memset		//清理bss段数据
 	dsb	ishst				// Make zero page visible to PTW
 
 #ifdef CONFIG_KASAN
@@ -466,10 +473,10 @@ SYM_FUNC_START_LOCAL(__primary_switched)
 	ret					// to __primary_switch()
 0:
 #endif
-	add	sp, sp, #16
-	mov	x29, #0
+	add	sp, sp, #16		//sp加一
+	mov	x29, #0			
 	mov	x30, #0
-	b	start_kernel
+	b	start_kernel	//跳转到start_kernel
 SYM_FUNC_END(__primary_switched)
 
 	.pushsection ".rodata", "a"
@@ -663,11 +670,12 @@ SYM_FUNC_END(el2_setup)
  * in w0. See arch/arm64/include/asm/virt.h for more info.
  */
 SYM_FUNC_START_LOCAL(set_cpu_boot_mode_flag)
-	adr_l	x1, __boot_cpu_mode
-	cmp	w0, #BOOT_CPU_MODE_EL2
-	b.ne	1f
-	add	x1, x1, #4
-1:	str	w0, [x1]			// This CPU has booted in EL1
+	adr_l	x1, __boot_cpu_mode	//把__boot_cpu_mode地址赋值给x1
+	cmp	w0, #BOOT_CPU_MODE_EL2	//如果当前cpu处于EL2
+	b.ne	1f					//跳转到1
+	add	x1, x1, #4				//当前cpu在EL1，使用__boot_cpu_mode[1]
+	//当前cpu在EL2，使用__boot_cpu_mode[0]
+1:	str	w0, [x1]			//将w0写入__boot_cpu_mode
 	dmb	sy
 	dc	ivac, x1			// Invalidate potentially stale cache line
 	ret
@@ -801,29 +809,30 @@ SYM_FUNC_END(__secondary_too_slow)
  * If it isn't, park the CPU
  */
 SYM_FUNC_START(__enable_mmu)
-	mrs	x2, ID_AA64MMFR0_EL1
-	ubfx	x2, x2, #ID_AA64MMFR0_TGRAN_SHIFT, 4
-	cmp     x2, #ID_AA64MMFR0_TGRAN_SUPPORTED_MIN
-	b.lt    __no_granule_support
-	cmp     x2, #ID_AA64MMFR0_TGRAN_SUPPORTED_MAX
-	b.gt    __no_granule_support
-	update_early_cpu_boot_status 0, x2, x3
-	adrp	x2, idmap_pg_dir
+	mrs	x2, ID_AA64MMFR0_EL1	//读取内存模型特征寄存器
+	ubfx	x2, x2, #ID_AA64MMFR0_TGRAN_SHIFT, 4	//提取28到31这4位
+	cmp     x2, #ID_AA64MMFR0_TGRAN_SUPPORTED_MIN	//如果支持4k页
+	b.lt    __no_granule_support		//卡死
+	cmp     x2, #ID_AA64MMFR0_TGRAN_SUPPORTED_MAX	//如果不支持4k页
+	b.gt    __no_granule_support		//卡死
+	//只有4KB粒度支持52位输入输出地址
+	update_early_cpu_boot_status 0, x2, x3	//启动中的CPU更新失败状态
+	adrp	x2, idmap_pg_dir	//读取内核页全局目录页表到x2
 	phys_to_ttbr x1, x1
 	phys_to_ttbr x2, x2
-	msr	ttbr0_el1, x2			// load TTBR0
+	msr	ttbr0_el1, x2			//内核页全局目录页表写入ttbr0_el1
 	offset_ttbr1 x1, x3
-	msr	ttbr1_el1, x1			// load TTBR1
+	msr	ttbr1_el1, x1			//内核镜像的init目录页表写入ttbr1_el1
 	isb
-	msr	sctlr_el1, x0
+	msr	sctlr_el1, x0	//把SCTLR_EL1_SET写入sctlr_el1寄存器，之前保存在x0
 	isb
 	/*
 	 * Invalidate the local I-cache so that any instructions fetched
 	 * speculatively from the PoC are discarded, since they may have
 	 * been dynamically patched at the PoU.
 	 */
-	ic	iallu
-	dsb	nsh
+	ic	iallu	//icache失效
+	dsb	nsh		//内存屏障
 	isb
 	ret
 SYM_FUNC_END(__enable_mmu)
@@ -966,21 +975,21 @@ SYM_FUNC_END(__relocate_kernel)
 
 SYM_FUNC_START_LOCAL(__primary_switch)
 #ifdef CONFIG_RANDOMIZE_BASE
-	mov	x19, x0				// preserve new SCTLR_EL1 value
-	mrs	x20, sctlr_el1			// preserve old SCTLR_EL1 value
+	mov	x19, x0				// 保留新的SCTLR_EL1值
+	mrs	x20, sctlr_el1			// 保留旧的SCTLR EL1值
 #endif
 
-	adrp	x1, init_pg_dir
+	adrp	x1, init_pg_dir		//获取init_pg_dir的页表基地址
 	bl	__enable_mmu			//开启mmu
 #ifdef CONFIG_RELOCATABLE
 #ifdef CONFIG_RELR
 	mov	x24, #0				// no RELR displacement yet
 #endif
 	bl	__relocate_kernel
-#ifdef CONFIG_RANDOMIZE_BASE
-	ldr	x8, =__primary_switched
-	adrp	x0, __PHYS_OFFSET
-	blr	x8
+#ifdef CONFIG_RANDOMIZE_BASE	//我们没开，不看
+	ldr	x8, =__primary_switched	//把__primary_switched的内容放入x8
+	adrp	x0, __PHYS_OFFSET	//获取内核代码段的页表基地址
+	blr	x8	//跳转到__primary_switched运行，返回的时候返回下一个指令
 
 	/*
 	 * If we return here, we have a KASLR displacement in x23 which we need
@@ -1005,7 +1014,7 @@ SYM_FUNC_START_LOCAL(__primary_switch)
 	bl	__relocate_kernel
 #endif
 #endif
-	ldr	x8, =__primary_switched
-	adrp	x0, __PHYS_OFFSET
-	br	x8
+	ldr	x8, =__primary_switched	//把__primary_switched的内容放入x8
+	adrp	x0, __PHYS_OFFSET	//获取内核代码段的页表基地址
+	br	x8						//跳转到__primary_switched，并且不返回
 SYM_FUNC_END(__primary_switch)

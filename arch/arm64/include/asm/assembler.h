@@ -446,7 +446,7 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
  * reset_amuserenr_el0 - reset AMUSERENR_EL0 if AMUv1 present
  */
 	.macro	reset_amuserenr_el0, tmpreg
-	mrs	\tmpreg, id_aa64pfr0_el1	// Check ID_AA64PFR0_EL1
+	mrs	\tmpreg, id_aa64pfr0_el1	//读取AArch64调试特性寄存器
 	ubfx	\tmpreg, \tmpreg, #ID_AA64PFR0_AMU_SHIFT, #4
 	cbz	\tmpreg, .Lskip_\@		// Skip if no AMU present
 	msr_s	SYS_AMUSERENR_EL0, xzr		// Disable AMU access from EL0

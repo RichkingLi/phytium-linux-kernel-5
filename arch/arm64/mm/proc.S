@@ -410,13 +410,13 @@ SYM_FUNC_END(idmap_kpti_install_ng_mappings)
  */
 	.pushsection ".idmap.text", "awx"
 SYM_FUNC_START(__cpu_setup)
-	tlbi	vmalle1				// Invalidate local TLB
+	tlbi	vmalle1				// 使本地TLB失效
 	dsb	nsh
 
-	mov	x1, #3 << 20
-	msr	cpacr_el1, x1			// Enable FP/ASIMD
+	mov	x1, #3 << 20		//x1=0x300000
+	msr	cpacr_el1, x1			// 使能EL1和EL0执行 FP/ASIMD指令
 	mov	x1, #1 << 12			// Reset mdscr_el1 and disable
-	msr	mdscr_el1, x1			// access to the DCC from EL0
+	msr	mdscr_el1, x1			//对AArch64 DCC寄存器的L0访问被捕获
 	isb					// Unmask debug exceptions now,
 	enable_dbg				// since this is per-cpu
 	reset_pmuserenr_el0 x1			// Disable PMU access from EL0
@@ -425,8 +425,8 @@ SYM_FUNC_START(__cpu_setup)
 	/*
 	 * Memory region attributes
 	 */
-	mov_q	x5, MAIR_EL1_SET
-#ifdef CONFIG_ARM64_MTE
+	mov_q	x5, MAIR_EL1_SET	//设置nGnRnE等内存属性
+#ifdef CONFIG_ARM64_MTE		//如果使能内存标签扩展支持
 	/*
 	 * Update MAIR_EL1, GCR_EL1 and TFSR*_EL1 if MTE is supported
 	 * (ID_AA64PFR1_EL1[11:8] > 1).
@@ -461,15 +461,16 @@ SYM_FUNC_START(__cpu_setup)
 	msr_s	SYS_TFSRE0_EL1, xzr
 1:
 #endif
-	msr	mair_el1, x5
+	msr	mair_el1, x5	//对内存的8个区域写入属性
 	/*
 	 * Set/prepare TCR and TTBR. We use 512GB (39-bit) address range for
 	 * both user and kernel.
 	 */
+	//准备TCR
 	mov_q	x10, TCR_TxSZ(VA_BITS) | TCR_CACHE_FLAGS | TCR_SMP_FLAGS | \
 			TCR_TG_FLAGS | TCR_KASLR_FLAGS | TCR_ASID16 | \
 			TCR_TBI0 | TCR_A1 | TCR_KASAN_FLAGS
-	tcr_clear_errata_bits x10, x9, x5
+	tcr_clear_errata_bits x10, x9, x5	//清除该CPU上触发勘误表的TCR位。
 
 #ifdef CONFIG_ARM64_VA_BITS_52
 	ldr_l		x9, vabits_actual
@@ -477,15 +478,15 @@ SYM_FUNC_START(__cpu_setup)
 	add		x9, x9, #64
 	tcr_set_t1sz	x10, x9
 #else
-	ldr_l		x9, idmap_t0sz
+	ldr_l		x9, idmap_t0sz	//读取idmap_t0sz
 #endif
-	tcr_set_t0sz	x10, x9
+	tcr_set_t0sz	x10, x9	//跟新t0sz，这样我们就可以加载ID映射
 
 	/*
 	 * Set the IPS bits in TCR_EL1.
 	 */
-	tcr_compute_pa_size x10, #TCR_IPS_SHIFT, x5, x6
-#ifdef CONFIG_ARM64_HW_AFDBM
+	tcr_compute_pa_size x10, #TCR_IPS_SHIFT, x5, x6		//设置TCR.IPS到最高支持
+#ifdef CONFIG_ARM64_HW_AFDBM	//如果支持Access和Dirty页面标志的硬件更新
 	/*
 	 * Enable hardware update of the Access Flags bit.
 	 * Hardware dirty bit management is enabled later,
@@ -493,14 +494,14 @@ SYM_FUNC_START(__cpu_setup)
 	 */
 	mrs	x9, ID_AA64MMFR1_EL1
 	and	x9, x9, #0xf
-	cbz	x9, 1f
-	orr	x10, x10, #TCR_HA		// hardware Access flag update
+	cbz	x9, 1f		//如果cpu允许硬件访问标志更新功能
+	orr	x10, x10, #TCR_HA		// 设置硬件访问标志更新功能
 1:
 #endif	/* CONFIG_ARM64_HW_AFDBM */
-	msr	tcr_el1, x10
+	msr	tcr_el1, x10		//写入tcr_el1
 	/*
 	 * Prepare SCTLR
 	 */
-	mov_q	x0, SCTLR_EL1_SET
+	mov_q	x0, SCTLR_EL1_SET	//我们想要设置SCTLR_EL1的值，先保存在x0
 	ret					// return to head.S
 SYM_FUNC_END(__cpu_setup)
