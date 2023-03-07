@@ -314,14 +314,14 @@ struct vm_userfaultfd_ctx {};
 struct vm_area_struct {
 	/* The first cache line has the info for VMA tree walking. */
 
-	unsigned long vm_start;		/* Our start address within vm_mm. */
-	unsigned long vm_end;		/* The first byte after our end address
+	unsigned long vm_start;		//起始地址
+	unsigned long vm_end;		//结束地址，区间是[起始地址，结束地址)，不包含结束地址
 					   within vm_mm. */
 
-	/* linked list of VM areas per task, sorted by address */
+	//虚拟内存区域链表，按起始地址排序
 	struct vm_area_struct *vm_next, *vm_prev;
 
-	struct rb_node vm_rb;
+	struct rb_node vm_rb;//红黑树节点
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -333,19 +333,22 @@ struct vm_area_struct {
 
 	/* Second cache line starts here. */
 
-	struct mm_struct *vm_mm;	/* The address space we belong to. */
+	struct mm_struct *vm_mm;//指向内存描述符，即虚拟内存区域所属的用户虚拟地址空间
 
 	/*
 	 * Access permissions of this VMA.
 	 * See vmf_insert_mixed_prot() for discussion.
 	 */
-	pgprot_t vm_page_prot;
-	unsigned long vm_flags;		/* Flags, see mm.h. */
+	pgprot_t vm_page_prot;//保护位，即访问权限
+	unsigned long vm_flags;//标志位		/* Flags, see mm.h. */
 
 	/*
 	 * For areas with an address space and backing store,
 	 * linkage into the address_space->i_mmap interval tree.
 	 */
+	//为了支持查询一个文件区间被映射到哪些虚拟内存区域，
+	//把一个文件映射到的所有虚拟内存区域加入该文件的地
+	//址空间结构体address_space的成员i_mmap指向的区间树
 	struct {
 		struct rb_node rb;
 		unsigned long rb_subtree_last;
@@ -357,17 +360,19 @@ struct vm_area_struct {
 	 * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
 	 * or brk vma (with NULL file) can only be in an anon_vma list.
 	 */
-	struct list_head anon_vma_chain; /* Serialized by mmap_lock &
-					  * page_table_lock */
+	//把虚拟内存区域关联的所有anon_vma实例串联起来。
+	//一个虚拟内存区域会关联到父进程的anon_vma实例和自己的anon_vma实例
+	struct list_head anon_vma_chain; 
+	//指向一个anon_vma实例，结构体anon_vma用来组织匿名页被映射到的所有虚拟地址空间
 	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
 
-	/* Function pointers to deal with this struct. */
-	const struct vm_operations_struct *vm_ops;
+	//文件页的ops找文件系统的，共享匿名页的ops是shmem_vm_ops，私有匿名页的ops是NULL
+	const struct vm_operations_struct *vm_ops;//虚拟内存操作集合
 
 	/* Information about our backing store: */
-	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
+	unsigned long vm_pgoff;//文件偏移，单位是页
 					   units */
-	struct file * vm_file;		/* File we map to (can be NULL). */
+	struct file * vm_file;//文件，如果是私有的匿名映射，该成员是空指针
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 
 #ifdef CONFIG_SWAP
@@ -396,10 +401,11 @@ struct core_state {
 struct kioctx_table;
 struct mm_struct {
 	struct {
-		struct vm_area_struct *mmap;		/* list of VMAs */
-		struct rb_root mm_rb;
+		struct vm_area_struct *mmap;	//虚拟内存区域链表
+		struct rb_root mm_rb;			//虚拟内存区域红黑树的根
 		u64 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
+		//在内存映射区域找到一个没有映射的区域的回调方法
 		unsigned long (*get_unmapped_area) (struct file *filp,
 				unsigned long addr, unsigned long len,
 				unsigned long pgoff, unsigned long flags);
@@ -411,9 +417,9 @@ struct mm_struct {
 		unsigned long mmap_compat_base;
 		unsigned long mmap_compat_legacy_base;
 #endif
-		unsigned long task_size;	/* size of task vm space */
-		unsigned long highest_vm_end;	/* highest vma end address */
-		pgd_t * pgd;
+		unsigned long task_size;//用户虚拟地址空间长度
+		unsigned long highest_vm_end;//最高vma结束地址，用于查找vma结束判断
+		pgd_t * pgd;//指向页全局目录，即第一级页表
 
 #ifdef CONFIG_MEMBARRIER
 		/**
@@ -434,6 +440,7 @@ struct mm_struct {
 		 * @mm_count (which may then free the &struct mm_struct if
 		 * @mm_count also drops to 0).
 		 */
+		//共享同一个用户虚拟地址空间的进程的数量，也就是线程组包含的进程的数量
 		atomic_t mm_users;
 
 		/**
@@ -443,7 +450,7 @@ struct mm_struct {
 		 * Use mmgrab()/mmdrop() to modify. When this drops to 0, the
 		 * &struct mm_struct is freed.
 		 */
-		atomic_t mm_count;
+		atomic_t mm_count;//内存描述符的引用计数
 
 		/**
 		 * @has_pinned: Whether this mm has pinned any pages.  This can
@@ -453,16 +460,14 @@ struct mm_struct {
 		 * unpinned later on, we'll still keep this bit set for the
 		 * lifecycle of this mm just for simplicity.
 		 */
-		atomic_t has_pinned;
+		atomic_t has_pinned;//表示这个内存的某一些内存页被固定了
 
 #ifdef CONFIG_MMU
-		atomic_long_t pgtables_bytes;	/* PTE page table pages */
+		atomic_long_t pgtables_bytes;//PTE页表页大小
 #endif
 		int map_count;			/* number of VMAs */
 
-		spinlock_t page_table_lock; /* Protects page tables and some
-					     * counters
-					     */
+		spinlock_t page_table_lock; //保护页表的自旋锁
 		/*
 		 * With some kernel config, the current mmap_lock's offset
 		 * inside 'mm_struct' is at 0x120, which is very optimal, as
@@ -475,24 +480,25 @@ struct mm_struct {
 		 * mmap_lock, which can easily push the 2 fields into one
 		 * cacheline.
 		 */
-		struct rw_semaphore mmap_lock;
+		struct rw_semaphore mmap_lock;//vma相关的都会使用这个信号量保护
 
-		struct list_head mmlist; /* List of maybe swapped mm's.	These
+		struct list_head mmlist; //链表指向可能进行了swap的内存
+					 /* List of maybe swapped mm's.	These
 					  * are globally strung together off
 					  * init_mm.mmlist, and are protected
 					  * by mmlist_lock
 					  */
 
 
-		unsigned long hiwater_rss; /* High-watermark of RSS usage */
-		unsigned long hiwater_vm;  /* High-water virtual memory usage */
+		unsigned long hiwater_rss; //RSS使用的高水位使用情况
+		unsigned long hiwater_vm;  //高水位虚拟内存使用情况
 
-		unsigned long total_vm;	   /* Total pages mapped */
-		unsigned long locked_vm;   /* Pages that have PG_mlocked set */
-		atomic64_t    pinned_vm;   /* Refcount permanently increased */
-		unsigned long data_vm;	   /* VM_WRITE & ~VM_SHARED & ~VM_STACK */
-		unsigned long exec_vm;	   /* VM_EXEC & ~VM_WRITE & ~VM_STACK */
-		unsigned long stack_vm;	   /* VM_STACK */
+		unsigned long total_vm;	   //进程地址空间的映射的总页数
+		unsigned long locked_vm;   //被锁住的页数
+		atomic64_t    pinned_vm;   //被固定住的页数
+		unsigned long data_vm;	   //存放数据的页数
+		unsigned long exec_vm;	   //存放可执行文件的页数
+		unsigned long stack_vm;	   //存放栈的页数
 		unsigned long def_flags;
 
 		/**
@@ -500,14 +506,19 @@ struct mm_struct {
 		 * protecting pages mapped by this mm to enforce a later COW,
 		 * for instance during page table copying for fork().
 		 */
+		//写保护锁，当这个结构体处于写保护的时候会上锁，比如fork
 		seqcount_t write_protect_seq;
 
 		spinlock_t arg_lock; /* protect the below fields */
 
+		//代码段的起始地址和结束地址，数据段的起始地址和结束地址
 		unsigned long start_code, end_code, start_data, end_data;
+		//堆的起始地址和结束地址，栈的起始地址
 		unsigned long start_brk, brk, start_stack;
+		//参数字符串的起始地址和结束地址，环境变量的起始地址和结束地址
 		unsigned long arg_start, arg_end, env_start, env_end;
 
+		//保存在进程执行时传递给进程的ELF的解释器的信息
 		unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */
 
 		/*
@@ -516,14 +527,14 @@ struct mm_struct {
 		 */
 		struct mm_rss_stat rss_stat;
 
-		struct linux_binfmt *binfmt;
+		struct linux_binfmt *binfmt;//保存加载linux接受的二进制格式的函数。
 
 		/* Architecture-specific MM context */
-		mm_context_t context;
+		mm_context_t context;//处理器架构特定的内存管理上下文，ARM64的ASID放这
 
 		unsigned long flags; /* Must use atomic bitops to access */
 
-		struct core_state *core_state; /* coredumping support */
+		struct core_state *core_state;//用于支持coredump
 
 #ifdef CONFIG_AIO
 		spinlock_t			ioctx_lock;
@@ -540,12 +551,12 @@ struct mm_struct {
 		 * new_owner->mm == mm
 		 * new_owner->alloc_lock is held
 		 */
-		struct task_struct __rcu *owner;
+		struct task_struct __rcu *owner;//指向mm的所有者
 #endif
 		struct user_namespace *user_ns;
 
 		/* store ref to file /proc/<pid>/exe symlink points to */
-		struct file __rcu *exe_file;
+		struct file __rcu *exe_file;//可执行程序
 #ifdef CONFIG_MMU_NOTIFIER
 		struct mmu_notifier_subscriptions *notifier_subscriptions;
 #endif

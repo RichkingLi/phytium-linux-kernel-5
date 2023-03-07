@@ -555,22 +555,30 @@ enum page_entry_size {
  * to the functions called when a no-page or a wp-page exception occurs.
  */
 struct vm_operations_struct {
+	//在创建虚拟内存区域时调用open方法
 	void (*open)(struct vm_area_struct * area);
+	//在删除虚拟内存区域时调用close方法
 	void (*close)(struct vm_area_struct * area);
 	int (*split)(struct vm_area_struct * area, unsigned long addr);
+	//使用系统调用mremap移动虚拟内存区域时调用mremap方法
 	int (*mremap)(struct vm_area_struct * area);
+	//访问文件映射的虚拟页时，如果没有映射到物理页，生成缺页异常，
+	//异常处理程序调用fault就去把文件的数据读到文件页缓存当中
 	vm_fault_t (*fault)(struct vm_fault *vmf);
+	//与fault类似，区别是huge_fault方法是针对巨型页的文件映射
 	vm_fault_t (*huge_fault)(struct vm_fault *vmf,
 			enum page_entry_size pe_size);
+	//读文件映射的虚拟页时，如果没有映射到屋里也，生成缺页异常，异常处理程序除了读入正在访问的文件页，
+	//还会预读后续的文件页，调用map_pages可以在文件的页缓存中分配物理页
 	void (*map_pages)(struct vm_fault *vmf,
 			pgoff_t start_pgoff, pgoff_t end_pgoff);
 	unsigned long (*pagesize)(struct vm_area_struct * area);
 
-	/* notification that a previously read-only page is about to become
-	 * writable, if an error is returned it will cause a SIGBUS */
+	//第一次写私有的文件映射时，生成的页错误异常，异常处理程序执行写时复制，
+	//调用page_mkwrite方法以通知文件系统页即将变成可写，以便文件系统检查是否允许写，或者等待页进入合适的转态。
 	vm_fault_t (*page_mkwrite)(struct vm_fault *vmf);
 
-	/* same as page_mkwrite when using VM_PFNMAP|VM_MIXEDMAP */
+	//和 page_mkwrite 方法类似，区别是 pfn_mkwrite 方法针对页帧号映射和混合映射
 	vm_fault_t (*pfn_mkwrite)(struct vm_fault *vmf);
 
 	/* called by access_process_vm when get_user_pages() fails, typically
