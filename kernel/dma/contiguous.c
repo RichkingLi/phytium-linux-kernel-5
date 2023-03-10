@@ -236,6 +236,7 @@ int __init dma_contiguous_reserve_area(phys_addr_t size, phys_addr_t base,
 		return ret;
 
 	/* Architecture specific contiguous memory fixup. */
+	//特定架构连续内存修复，我们不需要
 	dma_contiguous_early_fixup(cma_get_base(*res_cma),
 				cma_get_size(*res_cma));
 

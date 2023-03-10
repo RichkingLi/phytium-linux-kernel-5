@@ -20,7 +20,7 @@
 #include <linux/refcount.h>
 
 typedef struct {
-	atomic64_t	id;
+	atomic64_t	id;//存放ASID
 #ifdef CONFIG_COMPAT
 	void		*sigpage;
 #endif

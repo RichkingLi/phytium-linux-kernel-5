@@ -1910,23 +1910,24 @@ static void init_cgroup_housekeeping(struct cgroup *cgrp)
 	struct cgroup_subsys *ss;
 	int ssid;
 
-	INIT_LIST_HEAD(&cgrp->self.sibling);
-	INIT_LIST_HEAD(&cgrp->self.children);
-	INIT_LIST_HEAD(&cgrp->cset_links);
-	INIT_LIST_HEAD(&cgrp->pidlists);
-	mutex_init(&cgrp->pidlist_mutex);
+	INIT_LIST_HEAD(&cgrp->self.sibling);//初始化存放兄弟cgroup的链表
+	INIT_LIST_HEAD(&cgrp->self.children);//初始化存放子cgroup的链表
+	INIT_LIST_HEAD(&cgrp->cset_links);//初始化指向cgrp_cset_links的列表
+	INIT_LIST_HEAD(&cgrp->pidlists);//初始化存放进程pid的链表
+	mutex_init(&cgrp->pidlist_mutex);//初始化保护pidlists的互斥锁
 	cgrp->self.cgroup = cgrp;
 	cgrp->self.flags |= CSS_ONLINE;
 	cgrp->dom_cgrp = cgrp;
 	cgrp->max_descendants = INT_MAX;
 	cgrp->max_depth = INT_MAX;
 	INIT_LIST_HEAD(&cgrp->rstat_css_list);
-	prev_cputime_init(&cgrp->prev_cputime);
+	prev_cputime_init(&cgrp->prev_cputime);//空函数
 
 	for_each_subsys(ss, ssid)
 		INIT_LIST_HEAD(&cgrp->e_csets[ssid]);
 
 	init_waitqueue_head(&cgrp->offline_waitq);
+	//初始化工作队列，用于release的时候调用cgroup1_release_agent函数启动一个用户态程序
 	INIT_WORK(&cgrp->release_agent_work, cgroup1_release_agent);
 }
 
@@ -1935,10 +1936,10 @@ void init_cgroup_root(struct cgroup_fs_context *ctx)
 	struct cgroup_root *root = ctx->root;
 	struct cgroup *cgrp = &root->cgrp;
 
-	INIT_LIST_HEAD(&root->root_list);
-	atomic_set(&root->nr_cgrps, 1);
+	INIT_LIST_HEAD(&root->root_list);//初始化cgroup_root的链表
+	atomic_set(&root->nr_cgrps, 1);//设置cgroup的数量为1
 	cgrp->root = root;
-	init_cgroup_housekeeping(cgrp);
+	init_cgroup_housekeeping(cgrp);//初始化根cgroup的后勤工作
 
 	root->flags = ctx->flags;
 	if (ctx->release_agent)
@@ -5761,7 +5762,7 @@ int __init cgroup_init_early(void)
 	int i;
 
 	ctx.root = &cgrp_dfl_root;
-	init_cgroup_root(&ctx);
+	init_cgroup_root(&ctx);//初始化cgroup文件系统超级块创建/挂载上下文。
 	cgrp_dfl_root.cgrp.self.flags |= CSS_NO_REF;
 
 	RCU_INIT_POINTER(init_task.cgroups, &init_css_set);

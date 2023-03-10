@@ -42,7 +42,7 @@ static const struct cpu_operations * __init cpu_get_ops(const char *name)
 
 	ops = acpi_disabled ? dt_supported_cpu_ops : acpi_supported_cpu_ops;
 
-	while (*ops) {
+	while (*ops) {//把ops的名字拷贝过去
 		if (!strcmp(name, (*ops)->name))
 			return *ops;
 
@@ -57,6 +57,7 @@ static const char *__init cpu_read_enable_method(int cpu)
 	const char *enable_method;
 
 	if (acpi_disabled) {
+		//获取cpu节点
 		struct device_node *dn = of_get_cpu_node(cpu, NULL);
 
 		if (!dn) {
@@ -64,7 +65,7 @@ static const char *__init cpu_read_enable_method(int cpu)
 				pr_err("Failed to find device node for boot cpu\n");
 			return NULL;
 		}
-
+		//获取enable-method参数，我们是psci
 		enable_method = of_get_property(dn, "enable-method", NULL);
 		if (!enable_method) {
 			/*
@@ -103,7 +104,7 @@ int __init init_cpu_ops(int cpu)
 	if (!enable_method)
 		return -ENODEV;
 
-	cpu_ops[cpu] = cpu_get_ops(enable_method);
+	cpu_ops[cpu] = cpu_get_ops(enable_method);//cpu_psci_ops
 	if (!cpu_ops[cpu]) {
 		pr_warn("Unsupported enable-method: %s\n", enable_method);
 		return -EOPNOTSUPP;

@@ -223,7 +223,7 @@ static bool populate_node(const void *blob,
 	}
 
 	allocl = ++l;
-
+	//申请device_node内存
 	np = unflatten_dt_alloc(mem, sizeof(struct device_node) + allocl,
 				__alignof__(struct device_node));
 	if (!dryrun) {
@@ -239,7 +239,7 @@ static bool populate_node(const void *blob,
 			dad->child = np;
 		}
 	}
-
+	//填充device_node
 	populate_properties(blob, offset, mem, np, pathp, dryrun);
 	if (!dryrun) {
 		np->name = of_get_property(np, "name", NULL);
@@ -312,16 +312,16 @@ static int unflatten_dt_nodes(const void *blob,
 	root = dad;
 	nps[depth] = dad;
 
-	for (offset = 0;
+	for (offset = 0;	//遍历全部节点
 	     offset >= 0 && depth >= initial_depth;
 	     offset = fdt_next_node(blob, offset, &depth)) {
 		if (WARN_ON_ONCE(depth >= FDT_MAX_DEPTH - 1))
 			continue;
-
+		//判断当前节点状态是否ok
 		if (!IS_ENABLED(CONFIG_OF_KOBJ) &&
 		    !of_fdt_device_is_available(blob, offset))
 			continue;
-
+		//申请device_node内存并且填充它
 		if (!populate_node(blob, offset, &mem, nps[depth],
 				   &nps[depth+1], dryrun))
 			return mem - base;
@@ -391,6 +391,7 @@ void *__unflatten_device_tree(const void *blob,
 	}
 
 	/* First pass, scan for size */
+	//得到构建整个device node树需要的内存大小
 	size = unflatten_dt_nodes(blob, NULL, dad, NULL);
 	if (size < 0)
 		return NULL;
@@ -399,6 +400,7 @@ void *__unflatten_device_tree(const void *blob,
 	pr_debug("  size is %d, allocating...\n", size);
 
 	/* Allocate memory for the expanded device tree */
+	//分配整个device_node的内存
 	mem = dt_alloc(size + 4, __alignof__(struct device_node));
 	if (!mem)
 		return NULL;
@@ -410,12 +412,13 @@ void *__unflatten_device_tree(const void *blob,
 	pr_debug("  unflattening %p...\n", mem);
 
 	/* Second pass, do actual unflattening */
-	unflatten_dt_nodes(blob, mem, dad, mynodes);
+	unflatten_dt_nodes(blob, mem, dad, mynodes);//填充device_node
 	if (be32_to_cpup(mem + size) != 0xdeadbeef)
 		pr_warn("End of tree marker overwritten: %08x\n",
 			be32_to_cpup(mem + size));
 
 	if (detached && mynodes) {
+		//设置device_node的flag
 		of_node_set_flag(*mynodes, OF_DETACHED);
 		pr_debug("unflattened tree is detached\n");
 	}
@@ -960,15 +963,15 @@ int __init early_init_dt_scan_root(unsigned long node, const char *uname,
 
 	if (depth != 0)
 		return 0;
-
+	//给dt_root_size_cells 和dt_root_addr_cells 赋初值
 	dt_root_size_cells = OF_ROOT_NODE_SIZE_CELLS_DEFAULT;
 	dt_root_addr_cells = OF_ROOT_NODE_ADDR_CELLS_DEFAULT;
-
+	//获取#size-cells节点大小
 	prop = of_get_flat_dt_prop(node, "#size-cells", NULL);
 	if (prop)
 		dt_root_size_cells = be32_to_cpup(prop);
 	pr_debug("dt_root_size_cells = %x\n", dt_root_size_cells);
-
+	//获取#address-cells节点大小
 	prop = of_get_flat_dt_prop(node, "#address-cells", NULL);
 	if (prop)
 		dt_root_addr_cells = be32_to_cpup(prop);
@@ -1045,13 +1048,14 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 
 	pr_debug("search \"chosen\", depth: %d, uname: %s\n", depth, uname);
 
+	//如果不是chosen节点，返回吧
 	if (depth != 1 || !data ||
 	    (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
 		return 0;
 
-	early_init_dt_check_for_initrd(node);
+	early_init_dt_check_for_initrd(node);//从FDT上解析initrd位置
 
-	/* Retrieve command line */
+	//解析bootargs，写入到COMMAND_LINE_SIZE中
 	p = of_get_flat_dt_prop(node, "bootargs", &l);
 	if (p != NULL && l > 0)
 		strlcpy(data, p, min(l, COMMAND_LINE_SIZE));
@@ -1178,7 +1182,7 @@ bool __init early_init_dt_verify(void *params)
 	if (!params)
 		return false;
 
-	/* check device tree validity */
+	//检查设备树有效性
 	if (fdt_check_header(params))
 		return false;
 
@@ -1195,14 +1199,17 @@ void __init early_init_dt_scan_nodes(void)
 	int rc = 0;
 
 	/* Retrieve various information from the /chosen node */
+	//读取 /chosen节点信息，写入到boot_command_line
 	rc = of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
 	if (!rc)
 		pr_warn("No chosen node found, continuing without\n");
 
 	/* Initialize {size,address}-cells info */
+	//初始化size-cells和address-cells信息
 	of_scan_flat_dt(early_init_dt_scan_root, NULL);
 
 	/* Setup memory, calling early_init_dt_add_memory_arch */
+	//调用函数early_init_dt_add_memory_arch解析内存节点，把内存加入到memblock中
 	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
 }
 
@@ -1214,7 +1221,7 @@ bool __init early_init_dt_scan(void *params)
 	if (!status)
 		return false;
 
-	early_init_dt_scan_nodes();
+	early_init_dt_scan_nodes();//扫描设备树的内存节点，把内存加入到memblock中
 	return true;
 }
 
@@ -1228,13 +1235,15 @@ bool __init early_init_dt_scan(void *params)
  */
 void __init unflatten_device_tree(void)
 {
+	//解析fdt信息，转化为device_node组成的树状结构of_root
 	__unflatten_device_tree(initial_boot_params, NULL, &of_root,
 				early_init_dt_alloc_memory_arch, false);
 
 	/* Get pointer to "/chosen" and "/aliases" nodes for use everywhere */
+	//扫描“aliases”节点的所有属性
 	of_alias_scan(early_init_dt_alloc_memory_arch);
 
-	unittest_unflatten_overlay_base();
+	unittest_unflatten_overlay_base();//为ovelay测试创建基本设备树，空函数
 }
 
 /**

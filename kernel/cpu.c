@@ -2560,13 +2560,13 @@ void __init boot_cpu_init(void)
 	int cpu = smp_processor_id();
 
 	/* Mark the boot cpu "present", "online" etc for SMP and UP case */
-	set_cpu_online(cpu, true);
-	set_cpu_active(cpu, true);
-	set_cpu_present(cpu, true);
-	set_cpu_possible(cpu, true);
+	set_cpu_online(cpu, true);//记录当前cpu为online
+	set_cpu_active(cpu, true);//记录当前cpu为active
+	set_cpu_present(cpu, true);//记录当前cpu为present
+	set_cpu_possible(cpu, true);//记录当前cpu为possible
 
 #ifdef CONFIG_SMP
-	__boot_cpu_id = cpu;
+	__boot_cpu_id = cpu;//记录引导的cpu ID
 #endif
 }
 

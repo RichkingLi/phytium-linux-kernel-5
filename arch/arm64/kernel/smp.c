@@ -514,14 +514,14 @@ static int __init smp_cpu_setup(int cpu)
 {
 	const struct cpu_operations *ops;
 
-	if (init_cpu_ops(cpu))
+	if (init_cpu_ops(cpu))//读取cpu的enable方法并记录在cpu_ops中
 		return -ENODEV;
 
-	ops = get_cpu_ops(cpu);
-	if (ops->cpu_init(cpu))
+	ops = get_cpu_ops(cpu);//获取cpu的ops
+	if (ops->cpu_init(cpu))//回调cpu init函数：cpu_psci_cpu_init
 		return -ENODEV;
 
-	set_cpu_possible(cpu, true);
+	set_cpu_possible(cpu, true);//设置cpu存在表示位
 
 	return 0;
 }
@@ -711,9 +711,9 @@ void __init smp_init_cpus(void)
 	int i;
 
 	if (acpi_disabled)
-		of_parse_and_init_cpus();
+		of_parse_and_init_cpus();//初始化设备树中记录的cpu
 	else
-		acpi_parse_and_init_cpus();
+		acpi_parse_and_init_cpus();//初始化acpi检测到的cpu
 
 	if (cpu_count > nr_cpu_ids)
 		pr_warn("Number of cores (%d) exceeds configured maximum of %u - clipping\n",
@@ -731,10 +731,11 @@ void __init smp_init_cpus(void)
 	 * with entries in cpu_logical_map while initializing the cpus.
 	 * If the cpu set-up fails, invalidate the cpu_logical_map entry.
 	 */
+	//遍历所有cpu
 	for (i = 1; i < nr_cpu_ids; i++) {
-		if (cpu_logical_map(i) != INVALID_HWID) {
-			if (smp_cpu_setup(i))
-				set_cpu_logical_map(i, INVALID_HWID);
+		if (cpu_logical_map(i) != INVALID_HWID) {//cpu不是INVALID
+			if (smp_cpu_setup(i))//cpu设置成功
+				set_cpu_logical_map(i, INVALID_HWID);//设置cpu逻辑映射项
 		}
 	}
 }

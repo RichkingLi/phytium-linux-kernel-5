@@ -225,10 +225,10 @@ static void set_conduit(enum arm_smccc_conduit conduit)
 {
 	switch (conduit) {
 	case SMCCC_CONDUIT_HVC:
-		invoke_psci_fn = __invoke_psci_fn_hvc;
+		invoke_psci_fn = __invoke_psci_fn_hvc;//设置psci唤醒方式
 		break;
 	case SMCCC_CONDUIT_SMC:
-		invoke_psci_fn = __invoke_psci_fn_smc;
+		invoke_psci_fn = __invoke_psci_fn_smc;//设置psci唤醒方式
 		break;
 	default:
 		WARN(1, "Unexpected PSCI conduit %d\n", conduit);
@@ -398,9 +398,10 @@ static void __init psci_init_smccc(void)
 	u32 ver = ARM_SMCCC_VERSION_1_0;
 	int feature;
 
+	//检测smccc的版本
 	feature = psci_features(ARM_SMCCC_VERSION_FUNC_ID);
 
-	if (feature != PSCI_RET_NOT_SUPPORTED) {
+	if (feature != PSCI_RET_NOT_SUPPORTED) {//如果支持休眠
 		u32 ret;
 		ret = invoke_psci_fn(ARM_SMCCC_VERSION_FUNC_ID, 0, 0, 0);
 		if (ret >= ARM_SMCCC_VERSION_1_1) {
@@ -450,26 +451,25 @@ static void __init psci_0_2_set_functions(void)
  */
 static int __init psci_probe(void)
 {
-	u32 ver = psci_get_version();
+	u32 ver = psci_get_version();//从firmware 获取版本
 
 	pr_info("PSCIv%d.%d detected in firmware.\n",
 			PSCI_VERSION_MAJOR(ver),
 			PSCI_VERSION_MINOR(ver));
 
-	if (PSCI_VERSION_MAJOR(ver) == 0 && PSCI_VERSION_MINOR(ver) < 2) {
+	if (PSCI_VERSION_MAJOR(ver) == 0 && PSCI_VERSION_MINOR(ver) < 2) {//不支持小于0.2的版本
 		pr_err("Conflicting PSCI version detected.\n");
 		return -EINVAL;
 	}
-
+	//将linux中使用的psci_ops、arm_pm_off、pm_power_off对齐到具体PSCI的SMC功能id
 	psci_0_2_set_functions();
 
-	psci_init_migrate();
-
-	if (PSCI_VERSION_MAJOR(ver) >= 1) {
-		psci_init_smccc();
-		psci_init_cpu_suspend();
-		psci_init_system_suspend();
-		psci_init_system_reset2();
+	psci_init_migrate();//初始化迁移功能
+	if (PSCI_VERSION_MAJOR(ver) >= 1) {//如果版本psci=v1.0，特殊处理suspend
+		psci_init_smccc();//psci初始化smccc
+		psci_init_cpu_suspend();//psci初始化cpu休眠
+		psci_init_system_suspend();//psci初始化系统休眠
+		psci_init_system_reset2();//psci初始化系统重启
 	}
 
 	return 0;
@@ -485,7 +485,7 @@ typedef int (*psci_initcall_t)(const struct device_node *);
 static int __init psci_0_2_init(struct device_node *np)
 {
 	int err;
-
+	//从dt中解析出psci的method，我们是smc，表示psci功能通过smc实现
 	err = get_set_conduit_method(np);
 	if (err)
 		return err;
@@ -569,15 +569,16 @@ int __init psci_dt_init(void)
 	psci_initcall_t init_fn;
 	int ret;
 
+	//找到设备树中的psci节点
 	np = of_find_matching_node_and_match(NULL, psci_of_match, &matched_np);
 
-	if (!np || !of_device_is_available(np))
+	if (!np || !of_device_is_available(np))//判断节点是否ok
 		return -ENODEV;
 
-	init_fn = (psci_initcall_t)matched_np->data;
+	init_fn = (psci_initcall_t)matched_np->data;//psci_0_2_init()
 	ret = init_fn(np);
 
-	of_node_put(np);
+	of_node_put(np);//node的kobject的引用计数减一
 	return ret;
 }
 
@@ -588,18 +589,18 @@ int __init psci_dt_init(void)
  */
 int __init psci_acpi_init(void)
 {
-	if (!acpi_psci_present()) {
+	if (!acpi_psci_present()) {//如果acpi没有找到psci
 		pr_info("is not implemented in ACPI.\n");
 		return -EOPNOTSUPP;
 	}
 
 	pr_info("probing for conduit method from ACPI.\n");
 
-	if (acpi_psci_use_hvc())
+	if (acpi_psci_use_hvc())//psci是否通过hvc
 		set_conduit(SMCCC_CONDUIT_HVC);
 	else
 		set_conduit(SMCCC_CONDUIT_SMC);
 
-	return psci_probe();
+	return psci_probe();//PSCI探测函数
 }
 #endif

@@ -1677,13 +1677,14 @@ void __init memblock_cap_memory_range(phys_addr_t base, phys_addr_t size)
 
 	if (!size)
 		return;
-
+	//找出[base, base+size]的内存，隔离到regions中，这些是可用内存
 	ret = memblock_isolate_range(&memblock.memory, base, size,
 						&start_rgn, &end_rgn);
 	if (ret)
 		return;
 
 	/* remove all the MAP regions */
+	//从所有的memblock.memory(不包括可用内存)中移除已经映射的内存，已经映射说明已经在用了
 	for (i = memblock.memory.cnt - 1; i >= end_rgn; i--)
 		if (!memblock_is_nomap(&memblock.memory.regions[i]))
 			memblock_remove_region(&memblock.memory, i);
@@ -1693,6 +1694,7 @@ void __init memblock_cap_memory_range(phys_addr_t base, phys_addr_t size)
 			memblock_remove_region(&memblock.memory, i);
 
 	/* truncate the reserved regions */
+	//把剩下的(可用内存+没有映射的内存)放入memblock.reserved
 	memblock_remove_range(&memblock.reserved, 0, base);
 	memblock_remove_range(&memblock.reserved,
 			base + size, PHYS_ADDR_MAX);

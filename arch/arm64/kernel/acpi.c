@@ -233,8 +233,10 @@ done:
 		if (earlycon_acpi_spcr_enable)
 			early_init_dt_scan_chosen_stdout();
 	} else {
+		//解析ACPI SPCR表并添加首选控制台
 		acpi_parse_spcr(earlycon_acpi_spcr_enable, true);
 		if (IS_ENABLED(CONFIG_ACPI_BGRT))
+			//找到带有ACPI_SIG_BGRT的表，在其上运行acpi_parse_bgrt
 			acpi_table_parse(ACPI_SIG_BGRT, acpi_parse_bgrt);
 	}
 }

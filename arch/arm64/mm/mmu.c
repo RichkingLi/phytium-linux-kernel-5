@@ -306,11 +306,11 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 	p4d_t *p4dp = p4d_offset(pgdp, addr);
 	p4d_t p4d = READ_ONCE(*p4dp);
 
-	if (p4d_none(p4d)) {
+	if (p4d_none(p4d)) {//pgd中的entry内容为空
 		phys_addr_t pud_phys;
 		BUG_ON(!pgtable_alloc);
-		pud_phys = pgtable_alloc(PUD_SHIFT);
-		__p4d_populate(p4dp, pud_phys, PUD_TYPE_TABLE);
+		pud_phys = pgtable_alloc(PUD_SHIFT);//则需要创建一个pud页表， 
+		__p4d_populate(p4dp, pud_phys, PUD_TYPE_TABLE);//将pud物理地址写到pgd entry
 		p4d = READ_ONCE(*p4dp);
 	}
 	BUG_ON(p4d_bad(p4d));
@@ -355,6 +355,7 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 		mutex_unlock(&fixmap_lock);
 }
 
+//创建[va_start，size]这段虚拟地址的页表		   
 static void __create_pgd_mapping(pgd_t *pgdir, phys_addr_t phys,
 				 unsigned long virt, phys_addr_t size,
 				 pgprot_t prot,
@@ -362,6 +363,7 @@ static void __create_pgd_mapping(pgd_t *pgdir, phys_addr_t phys,
 				 int flags)
 {
 	unsigned long addr, end, next;
+	//计算区域起始虚拟地址在pgd中entry的位置 
 	pgd_t *pgdp = pgd_offset_pgd(pgdir, virt);
 
 	/*
@@ -370,17 +372,17 @@ static void __create_pgd_mapping(pgd_t *pgdir, phys_addr_t phys,
 	 */
 	if (WARN_ON((phys ^ virt) & ~PAGE_MASK))
 		return;
-
+	//页表以页为单位创建，起始地址和长度需要页对齐 
 	phys &= PAGE_MASK;
 	addr = virt & PAGE_MASK;
 	end = PAGE_ALIGN(virt + size);
 
 	do {
-		next = pgd_addr_end(addr, end);
+		next = pgd_addr_end(addr, end);//计算下一个pgd entry对应的虚拟地址值
 		alloc_init_pud(pgdp, addr, next, phys, prot, pgtable_alloc,
-			       flags);
+			       flags);//初始化pud页表项
 		phys += next - addr;
-	} while (pgdp++, addr = next, addr != end);
+	} while (pgdp++, addr = next, addr != end);//循环pgd entry 
 }
 
 static phys_addr_t __pgd_pgtable_alloc(int shift)
@@ -510,6 +512,7 @@ static void __init map_mem(pgd_t *pgdp)
 	 * So temporarily mark them as NOMAP to skip mappings in
 	 * the following for-loop
 	 */
+	//把内核只读数据段数据标记为没有映射
 	memblock_mark_nomap(kernel_start, kernel_end - kernel_start);
 
 #ifdef CONFIG_KEXEC_CORE
@@ -524,7 +527,7 @@ static void __init map_mem(pgd_t *pgdp)
 #endif
 
 	/* map all the memory banks */
-	for_each_mem_range(i, &start, &end) {
+	for_each_mem_range(i, &start, &end) {//遍历全部memblock.memory
 		if (start >= end)
 			break;
 		/*
@@ -532,6 +535,8 @@ static void __init map_mem(pgd_t *pgdp)
 		 * if MTE is present. Otherwise, it has the same attributes as
 		 * PAGE_KERNEL.
 		 */
+		
+		//创建[start，end]这段虚拟地址的页表
 		__map_memblock(pgdp, start, end, pgprot_tagged(PAGE_KERNEL),
 			       flags);
 	}
@@ -546,8 +551,10 @@ static void __init map_mem(pgd_t *pgdp)
 	 * Note that contiguous mappings cannot be remapped in this way,
 	 * so we should avoid them here.
 	 */
+	//创建代码段这段虚拟地址的页表
 	__map_memblock(pgdp, kernel_start, kernel_end,
 		       PAGE_KERNEL, NO_CONT_MAPPINGS);
+	//清除nomap这个标志
 	memblock_clear_nomap(kernel_start, kernel_end - kernel_start);
 
 	/*
@@ -594,20 +601,20 @@ static void __init map_kernel_segment(pgd_t *pgdp, void *va_start, void *va_end,
 
 	BUG_ON(!PAGE_ALIGNED(pa_start));
 	BUG_ON(!PAGE_ALIGNED(size));
-
+	//创建[va_start，size]这段虚拟地址的页表
 	__create_pgd_mapping(pgdp, pa_start, (unsigned long)va_start, size, prot,
 			     early_pgtable_alloc, flags);
 
 	if (!(vm_flags & VM_NO_GUARD))
 		size += PAGE_SIZE;
-
+	//补充vma结构体
 	vma->addr	= va_start;
 	vma->phys_addr	= pa_start;
 	vma->size	= size;
 	vma->flags	= VM_MAP | vm_flags;
 	vma->caller	= __builtin_return_address(0);
 
-	vm_area_add_early(vma);
+	vm_area_add_early(vma);//把vma加入vmlist
 }
 
 static int __init parse_rodata(char *arg)
@@ -699,21 +706,26 @@ static void __init map_kernel(pgd_t *pgdp)
 	 * BTI then mark the kernel executable text as guarded pages
 	 * now so we don't have to rewrite the page tables later.
 	 */
-	if (arm64_early_this_cpu_has_bti())
+	if (arm64_early_this_cpu_has_bti())//如果支持BTI
 		text_prot = __pgprot_modify(text_prot, PTE_GP, PTE_GP);
 
 	/*
 	 * Only rodata will be remapped with different permissions later on,
 	 * all other segments are allowed to use contiguous mappings.
 	 */
+	//创建内核代码段的映射vmlinux_text
 	map_kernel_segment(pgdp, _text, _etext, text_prot, &vmlinux_text, 0,
 			   VM_NO_GUARD);
+	//创建内核只读数据段的映射vmlinux_rodata
 	map_kernel_segment(pgdp, __start_rodata, __inittext_begin, PAGE_KERNEL,
 			   &vmlinux_rodata, NO_CONT_MAPPINGS, VM_NO_GUARD);
+	//创建内核
 	map_kernel_segment(pgdp, __inittext_begin, __inittext_end, text_prot,
 			   &vmlinux_inittext, 0, VM_NO_GUARD);
+	//创建内核
 	map_kernel_segment(pgdp, __initdata_begin, __initdata_end, PAGE_KERNEL,
 			   &vmlinux_initdata, 0, VM_NO_GUARD);
+	//创建内核数据段的映射vmlinux_data
 	map_kernel_segment(pgdp, _data, _end, PAGE_KERNEL, &vmlinux_data, 0, 0);
 
 	if (!READ_ONCE(pgd_val(*pgd_offset_pgd(pgdp, FIXADDR_START)))) {
@@ -749,16 +761,18 @@ static void __init map_kernel(pgd_t *pgdp)
 
 void __init paging_init(void)
 {
+	//获取swapper_pg_dir对应的pgd项
 	pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir));
 
-	map_kernel(pgdp);
-	map_mem(pgdp);
+	map_kernel(pgdp);//为内核创建细粒度映射。
+	map_mem(pgdp);//给全部的memblock创建页表映射
 
-	pgd_clear_fixmap();
-
+	pgd_clear_fixmap();//清空fixmap临时映射
+	//切换页表，并将新建立的页表内容替换swappper_pg_dir页表内容
 	cpu_replace_ttbr1(lm_alias(swapper_pg_dir));
-	init_mm.pgd = swapper_pg_dir;
+	init_mm.pgd = swapper_pg_dir;//设置mm.pgd
 
+	//释放粗粒度内核页表init_pg_dir
 	memblock_free(__pa_symbol(init_pg_dir),
 		      __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
 
@@ -1236,7 +1250,7 @@ void __init early_fixmap_init(void)
 	pmd_t *pmdp;
 	unsigned long addr = FIXADDR_START;
 
-	pgdp = pgd_offset_k(addr);
+	pgdp = pgd_offset_k(addr);//找到pgd页表项
 	p4dp = p4d_offset(pgdp, addr);
 	p4d = READ_ONCE(*p4dp);
 	if (CONFIG_PGTABLE_LEVELS > 3 &&
@@ -1250,12 +1264,15 @@ void __init early_fixmap_init(void)
 		pudp = pud_offset_kimg(p4dp, addr);
 	} else {
 		if (p4d_none(p4d))
+			//将bm_pud的物理地址写到pgd全局页目录表中
 			__p4d_populate(p4dp, __pa_symbol(bm_pud), PUD_TYPE_TABLE);
 		pudp = fixmap_pud(addr);
 	}
 	if (pud_none(READ_ONCE(*pudp)))
+		//将bm_pmd的物理地址写到pud页目录表中
 		__pud_populate(pudp, __pa_symbol(bm_pmd), PMD_TYPE_TABLE);
 	pmdp = fixmap_pmd(addr);
+	//将bm_pte的物理地址写到pmd页表目录表中
 	__pmd_populate(pmdp, __pa_symbol(bm_pte), PMD_TYPE_TABLE);
 
 	/*
@@ -1302,7 +1319,7 @@ void __set_fixmap(enum fixed_addresses idx,
 		flush_tlb_kernel_range(addr, addr+PAGE_SIZE);
 	}
 }
-
+//该函数只能先写pte页表项，事前固定映射已经完成
 void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 {
 	const u64 dt_virt_base = __fix_to_virt(FIX_FDT);

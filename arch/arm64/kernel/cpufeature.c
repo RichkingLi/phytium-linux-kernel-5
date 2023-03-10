@@ -1306,6 +1306,7 @@ has_useable_cnp(const struct arm64_cpu_capabilities *entry, int scope)
  */
 bool kaslr_requires_kpti(void)
 {
+	//如果没有CONFIG_RANDOMIZE_BASE，说明不能支持kpti
 	if (!IS_ENABLED(CONFIG_RANDOMIZE_BASE))
 		return false;
 
@@ -1314,7 +1315,9 @@ bool kaslr_requires_kpti(void)
 	 * where available.
 	 */
 	if (IS_ENABLED(CONFIG_ARM64_E0PD)) {
+		//读取AA64MMFR2_EL1寄存器
 		u64 mmfr2 = read_sysreg_s(SYS_ID_AA64MMFR2_EL1);
+		//如果寄存器实现了E0PD，就不用KPTI了，因为硬件实现了相关功能
 		if (cpuid_feature_extract_unsigned_field(mmfr2,
 						ID_AA64MMFR2_E0PD_SHIFT))
 			return false;
@@ -1324,6 +1327,7 @@ bool kaslr_requires_kpti(void)
 	 * Systems affected by Cavium erratum 24756 are incompatible
 	 * with KPTI.
 	 */
+	//如果开启了erratum 24756，就不能开启KPTI，因为不兼容
 	if (IS_ENABLED(CONFIG_CAVIUM_ERRATUM_27456)) {
 		extern const struct midr_range cavium_erratum_27456_cpus[];
 

@@ -224,6 +224,7 @@ static void __init zone_sizes_init(unsigned long min, unsigned long max)
 	unsigned int __maybe_unused dt_zone_dma_bits;
 	phys_addr_t __maybe_unused dma32_phys_limit = max_zone_phys(32);
 
+	//填充max_zone_pfns结构体
 #ifdef CONFIG_ZONE_DMA
 	acpi_zone_dma_bits = fls64(acpi_iort_dma_get_max_cpu_address());
 	dt_zone_dma_bits = fls64(of_dma_get_max_cpu_address(NULL));
@@ -237,8 +238,8 @@ static void __init zone_sizes_init(unsigned long min, unsigned long max)
 		arm64_dma_phys_limit = dma32_phys_limit;
 #endif
 	max_zone_pfns[ZONE_NORMAL] = max;
-
-	free_area_init(max_zone_pfns);
+	//根据max_zone_pfns结构体初始化
+	free_area_init(max_zone_pfns);//初始化所有pg data t和zone数据
 }
 
 int pfn_valid(unsigned long pfn)
@@ -313,10 +314,11 @@ static void __init fdt_enforce_memory_region(void)
 	struct memblock_region reg = {
 		.size = 0,
 	};
-
+	//扫描linux,usable-memory-range属性的内存，放入reg
 	of_scan_flat_dt(early_init_dt_scan_usablemem, &reg);
 
 	if (reg.size)
+		//将memblock的内存，把所有还没有使用的内存放到memblock.reserved中
 		memblock_cap_memory_range(reg.base, reg.size);
 }
 
@@ -325,14 +327,12 @@ void __init arm64_memblock_init(void)
 	const s64 linear_region_size = BIT(vabits_actual - 1);
 
 	/* Handle linux,usable-memory-range property */
-	fdt_enforce_memory_region();
+	fdt_enforce_memory_region();//扫描usable-memory-range属性的内存
 
-	/* Remove memory above our supported physical address size */
+	//删除超出我们支持的物理地址大小的内存
 	memblock_remove(1ULL << PHYS_MASK_SHIFT, ULLONG_MAX);
 
-	/*
-	 * Select a suitable value for the base of physical memory.
-	 */
+	//为物理内存的基数选择一个合适的值
 	memstart_addr = round_down(memblock_start_of_DRAM(),
 				   ARM64_MEMSTART_ALIGN);
 
@@ -341,6 +341,7 @@ void __init arm64_memblock_init(void)
 	 * linear mapping. Take care not to clip the kernel which may be
 	 * high in memory.
 	 */
+	//删除线性映射覆盖的内存，我们无法用
 	memblock_remove(max_t(u64, memstart_addr + linear_region_size,
 			__pa_symbol(_end)), ULLONG_MAX);
 	if (memstart_addr + linear_region_size < memblock_end_of_DRAM()) {
@@ -393,6 +394,8 @@ void __init arm64_memblock_init(void)
 			"initrd not fully accessible via the linear mapping -- please check your bootloader ...\n")) {
 			phys_initrd_size = 0;
 		} else {
+			//移除[phys_initrd_start,phys_initrd_start + phys_initrd_size]
+			//再添加回去，从而清除flags，最后放入reserve中
 			memblock_remove(base, size); /* clear MEMBLOCK_ flags */
 			memblock_add(base, size);
 			memblock_reserve(base, size);
@@ -420,19 +423,20 @@ void __init arm64_memblock_init(void)
 	 * Register the kernel text, kernel data, initrd, and initial
 	 * pagetables with memblock.
 	 */
+	//把内核代码段的内存放入reserve
 	memblock_reserve(__pa_symbol(_text), _end - _text);
 	if (IS_ENABLED(CONFIG_BLK_DEV_INITRD) && phys_initrd_size) {
 		/* the generic initrd code expects virtual addresses */
 		initrd_start = __phys_to_virt(phys_initrd_start);
 		initrd_end = initrd_start + phys_initrd_size;
 	}
-
+	//把设备树中记录的reserved内存放入reserve
 	early_init_fdt_scan_reserved_mem();
 
-	reserve_elfcorehdr();
+	reserve_elfcorehdr();//为ELF核心头预留内存
 
 	if (!IS_ENABLED(CONFIG_ZONE_DMA) && !IS_ENABLED(CONFIG_ZONE_DMA32))
-		reserve_crashkernel();
+		reserve_crashkernel();//解析设备树，把crashkernel需要的内存放入reserve
 
 	high_memory = __va(memblock_end_of_DRAM() - 1) + 1;
 }
@@ -444,12 +448,13 @@ void __init bootmem_init(void)
 	min = PFN_UP(memblock_start_of_DRAM());
 	max = PFN_DOWN(memblock_end_of_DRAM());
 
+	//引导时期的内存读写测试，
 	early_memtest(min << PAGE_SHIFT, max << PAGE_SHIFT);
 
 	max_pfn = max_low_pfn = max;
 	min_low_pfn = min;
 
-	arm64_numa_init();
+	arm64_numa_init();//numa相关的初始化
 
 	/*
 	 * must be done after arm64_numa_init() which calls numa_init() to
@@ -457,21 +462,21 @@ void __init bootmem_init(void)
 	 * while allocating required CMA size across online nodes.
 	 */
 #if defined(CONFIG_HUGETLB_PAGE) && defined(CONFIG_CMA)
-	arm64_hugetlb_cma_reserve();
+	arm64_hugetlb_cma_reserve();//预留CMA区域
 #endif
-
-	dma_pernuma_cma_reserve();
+	//如果启动参数指定了cma_pernuma，为每个numa申请cma内存
+	dma_pernuma_cma_reserve();//反正我没用过
 
 	/*
 	 * sparse_init() tries to allocate memory from memblock, so must be
 	 * done after the fixed reservations
 	 */
-	sparse_init();
-	zone_sizes_init(min, max);
+	//为每个section创建page结构体数组，并为这些struct page结构体创建页表，
+	//映射到vmemmap虚拟映射区，同时对每个在线的mem_section进行初始化
+	sparse_init();//
+	zone_sizes_init(min, max);//初始化每个node, node下的zone, 以及node下的每一个pfn对应的page
 
-	/*
-	 * Reserve the CMA area after arm64_dma_phys_limit was initialised.
-	 */
+	//初始化arm64_dma_phys_limit后保留CMA区域
 	dma_contiguous_reserve(arm64_dma_phys_limit);
 
 	/*
@@ -479,9 +484,9 @@ void __init bootmem_init(void)
 	 * reserved, so do it here.
 	 */
 	if (IS_ENABLED(CONFIG_ZONE_DMA) || IS_ENABLED(CONFIG_ZONE_DMA32))
-		reserve_crashkernel();
+		reserve_crashkernel();//为崩溃内核预留内存
 
-	memblock_dump_all();
+	memblock_dump_all();//debug的时候输出memblock的信息
 }
 
 #ifndef CONFIG_SPARSEMEM_VMEMMAP

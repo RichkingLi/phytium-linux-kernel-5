@@ -219,19 +219,20 @@ static void subsection_mask_set(unsigned long *map, unsigned long pfn,
 
 void __init subsection_map_init(unsigned long pfn, unsigned long nr_pages)
 {
-	int end_sec = pfn_to_section_nr(pfn + nr_pages - 1);
-	unsigned long nr, start_sec = pfn_to_section_nr(pfn);
+	int end_sec = pfn_to_section_nr(pfn + nr_pages - 1);//根据pfn找到section号
+	unsigned long nr, start_sec = pfn_to_section_nr(pfn);//根据pfn找到section号
 
 	if (!nr_pages)
 		return;
-
+	//遍历每一个page
 	for (nr = start_sec; nr <= end_sec; nr++) {
 		struct mem_section *ms;
 		unsigned long pfns;
 
 		pfns = min(nr_pages, PAGES_PER_SECTION
 				- (pfn & ~PAGE_SECTION_MASK));
-		ms = __nr_to_section(nr);
+		ms = __nr_to_section(nr);//找到page所在的section
+		//把section的usage->subsection_map置位，表示page是存在的
 		subsection_mask_set(ms->usage->subsection_map, pfn, pfns);
 
 		pr_debug("%s: sec: %lu pfns: %lu set(%d, %d)\n", __func__, nr,
@@ -527,20 +528,22 @@ static void __init sparse_init_nid(int nid, unsigned long pnum_begin,
 	struct mem_section_usage *usage;
 	unsigned long pnum;
 	struct page *map;
-
+	//从memblock申请map_count个usage的内存
 	usage = sparse_early_usemaps_alloc_pgdat_section(NODE_DATA(nid),
 			mem_section_usage_size() * map_count);
 	if (!usage) {
 		pr_err("%s: node[%d] usemap allocation failed", __func__, nid);
 		goto failed;
 	}
+	//预分配缓冲区，用来存放section_map
 	sparse_buffer_init(map_count * section_map_size(), nid);
+	//遍历当前每一个section
 	for_each_present_section_nr(pnum_begin, pnum) {
 		unsigned long pfn = section_nr_to_pfn(pnum);
 
 		if (pnum >= pnum_end)
 			break;
-
+		//填充memmap
 		map = __populate_section_memmap(pfn, PAGES_PER_SECTION,
 				nid, NULL);
 		if (!map) {
@@ -552,7 +555,7 @@ static void __init sparse_init_nid(int nid, unsigned long pnum_begin,
 		}
 		check_usemap_section_nr(nid, usage);
 		sparse_init_one_section(__nr_to_section(pnum), pnum, map, usage,
-				SECTION_IS_EARLY);
+				SECTION_IS_EARLY);//设置section的section_mem_map和usage
 		usage = (void *) usage + mem_section_usage_size();
 	}
 	sparse_buffer_fini();
@@ -578,14 +581,16 @@ void __init sparse_init(void)
 	unsigned long pnum_end, pnum_begin, map_count = 1;
 	int nid_begin;
 
-	memblocks_present();
+	memblocks_present();//使用memory_present()将所有memblock标记为当前
 
-	pnum_begin = first_present_section_nr();
+	pnum_begin = first_present_section_nr();//找到第一个section
+	//找到第一个section的记录的nid
 	nid_begin = sparse_early_nid(__nr_to_section(pnum_begin));
 
 	/* Setup pageblock_order for HUGETLB_PAGE_SIZE_VARIABLE */
-	set_pageblock_order();
+	set_pageblock_order();//设置页块大小，也就是section的大小
 
+	//遍历每一个section
 	for_each_present_section_nr(pnum_begin + 1, pnum_end) {
 		int nid = sparse_early_nid(__nr_to_section(pnum_end));
 
@@ -594,12 +599,13 @@ void __init sparse_init(void)
 			continue;
 		}
 		/* Init node with sections in range [pnum_begin, pnum_end) */
+		//初始化某个节点上 [pnum_begin, pnum_end)的section
 		sparse_init_nid(nid_begin, pnum_begin, pnum_end, map_count);
 		nid_begin = nid;
 		pnum_begin = pnum_end;
 		map_count = 1;
 	}
-	/* cover the last node */
+	//初始化最后一个节点上 [pnum_begin, pnum_end)的section
 	sparse_init_nid(nid_begin, pnum_begin, pnum_end, map_count);
 	vmemmap_populate_print_last();
 }

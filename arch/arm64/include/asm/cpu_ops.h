@@ -60,7 +60,7 @@ extern const struct cpu_operations *get_cpu_ops(int cpu);
 
 static inline void __init init_bootcpu_ops(void)
 {
-	init_cpu_ops(0);
+	init_cpu_ops(0);//读取cpu的enable方法并记录在cpu_ops中
 }
 
 #endif /* ifndef __ASM_CPU_OPS_H */

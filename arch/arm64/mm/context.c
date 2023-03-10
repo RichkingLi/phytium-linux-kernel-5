@@ -358,7 +358,7 @@ asmlinkage void post_ttbr_update_workaround(void)
 void cpu_do_switch_mm(phys_addr_t pgd_phys, struct mm_struct *mm)
 {
 	unsigned long ttbr1 = read_sysreg(ttbr1_el1);
-	unsigned long asid = ASID(mm);
+	unsigned long asid = ASID(mm);//读取ASID
 	unsigned long ttbr0 = phys_to_ttbr(pgd_phys);
 
 	/* Skip CNP for the reserved ASID */
@@ -373,11 +373,11 @@ void cpu_do_switch_mm(phys_addr_t pgd_phys, struct mm_struct *mm)
 	ttbr1 &= ~TTBR_ASID_MASK;
 	ttbr1 |= FIELD_PREP(TTBR_ASID_MASK, asid);
 
-	write_sysreg(ttbr1, ttbr1_el1);
+	write_sysreg(ttbr1, ttbr1_el1);//写入ttbr1
 	isb();
-	write_sysreg(ttbr0, ttbr0_el1);
+	write_sysreg(ttbr0, ttbr0_el1);//写入ttbr0
 	isb();
-	post_ttbr_update_workaround();
+	post_ttbr_update_workaround();//勘误表工作后TTBRx更新
 }
 
 static int asids_update_limit(void)

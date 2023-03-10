@@ -257,7 +257,7 @@ struct page * __meminit __populate_section_memmap(unsigned long pfn,
 	if (WARN_ON_ONCE(!IS_ALIGNED(pfn, PAGES_PER_SUBSECTION) ||
 		!IS_ALIGNED(nr_pages, PAGES_PER_SUBSECTION)))
 		return NULL;
-
+	//填充nr_pages个page的页表
 	if (vmemmap_populate(start, end, nid, altmap))
 		return NULL;
 

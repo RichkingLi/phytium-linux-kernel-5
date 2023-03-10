@@ -84,15 +84,17 @@ u64 __cacheline_aligned boot_args[4];
 
 void __init smp_setup_processor_id(void)
 {
+	//读取MPIDR_EL1寄存器，并且只保留4个等级的亲和性
 	u64 mpidr = read_cpuid_mpidr() & MPIDR_HWID_BITMASK;
-	set_cpu_logical_map(0, mpidr);
+	set_cpu_logical_map(0, mpidr);//cpu的亲和性写入__cpu_logical_map
 
 	/*
 	 * clear __my_cpu_offset on boot CPU to avoid hang caused by
 	 * using percpu variable early, for example, lockdep will
 	 * access percpu variable inside lock_release
 	 */
-	set_my_cpu_offset(0);
+	//tpidr_el1存放当前cpu的per_cpu变量的offset值
+	set_my_cpu_offset(0);//设置到对应cpu的tpidr_el1和tpidr_el2寄存器
 	pr_info("Booting Linux on physical CPU 0x%010lx [0x%08x]\n",
 		(unsigned long)mpidr, read_cpuid_id());
 }
@@ -171,12 +173,14 @@ static void __init smp_build_mpidr_hash(void)
 static void __init setup_machine_fdt(phys_addr_t dt_phys)
 {
 	int size;
+	//为FDT物理计算出虚拟地址，然后填写pte页表项创建映射关系
 	void *dt_virt = fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL);
 	const char *name;
 
 	if (dt_virt)
-		memblock_reserve(dt_phys, size);
+		memblock_reserve(dt_phys, size);//设备树内存添加到memblock.reserved中
 
+	//扫描设备树的内存信息，把内存加入memblock
 	if (!dt_virt || !early_init_dt_scan(dt_virt)) {
 		pr_crit("\n"
 			"Error: invalid device tree blob at physical address %pa (virtual address 0x%p)\n"
@@ -188,7 +192,7 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
 			cpu_relax();
 	}
 
-	/* Early fixups are done, map the FDT as read-only now */
+	//修改映射的pte项为只读
 	fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL_RO);
 
 	name = of_flat_dt_get_machine_name();
@@ -206,20 +210,22 @@ static void __init request_standard_resources(void)
 	unsigned long i = 0;
 	size_t res_size;
 
-	kernel_code.start   = __pa_symbol(_text);
-	kernel_code.end     = __pa_symbol(__init_begin - 1);
-	kernel_data.start   = __pa_symbol(_sdata);
-	kernel_data.end     = __pa_symbol(_end - 1);
+	kernel_code.start   = __pa_symbol(_text);//内核代码段起始地址
+	kernel_code.end     = __pa_symbol(__init_begin - 1);//内核代码段结束地址
+	kernel_data.start   = __pa_symbol(_sdata);//内核数据段起始地址
+	kernel_data.end     = __pa_symbol(_end - 1);//内核数据段结束地址
 
-	num_standard_resources = memblock.memory.cnt;
+	num_standard_resources = memblock.memory.cnt;//memblock内存块数量
 	res_size = num_standard_resources * sizeof(*standard_resources);
+	//申请内存存放内存资源结构体
 	standard_resources = memblock_alloc(res_size, SMP_CACHE_BYTES);
 	if (!standard_resources)
 		panic("%s: Failed to allocate %zu bytes\n", __func__, res_size);
 
+	//遍历内存区域region
 	for_each_mem_region(region) {
 		res = &standard_resources[i++];
-		if (memblock_is_nomap(region)) {
+		if (memblock_is_nomap(region)) {//如果这块内存没有映射
 			res->name  = "reserved";
 			res->flags = IORESOURCE_MEM;
 		} else {
@@ -283,82 +289,85 @@ u64 cpu_logical_map(int cpu)
 
 void __init __no_sanitize_address setup_arch(char **cmdline_p)
 {
+	//init_mm是init进程（0号进程）的内存描述符
+	//初始化内核的mm结构体的代码段、数据段和栈的结束地址
 	init_mm.start_code = (unsigned long) _text;
 	init_mm.end_code   = (unsigned long) _etext;
 	init_mm.end_data   = (unsigned long) _edata;
 	init_mm.brk	   = (unsigned long) _end;
 
-	*cmdline_p = boot_command_line;
+	*cmdline_p = boot_command_line;//cmdline_p指向boot启动参数
 
 	/*
 	 * If know now we are going to need KPTI then use non-global
 	 * mappings from the start, avoiding the cost of rewriting
 	 * everything later.
 	 */
+	//这里根据是否开启kpli(内核页表隔离)决定是否创建非全局页表
 	arm64_use_ng_mappings = kaslr_requires_kpti();
 
-	early_fixmap_init();
-	early_ioremap_init();
+	early_fixmap_init();//早期固定映射初始化，搞了个框架，还没有填充pte页表项
+	early_ioremap_init();//早期io映射初始化
 
-	setup_machine_fdt(__fdt_pointer);
+	setup_machine_fdt(__fdt_pointer);//解析fdt中内存，加入到memblock中
 
 	/*
 	 * Initialise the static keys early as they may be enabled by the
 	 * cpufeature code and early parameters.
 	 */
-	jump_label_init();
-	parse_early_param();
+	jump_label_init();//初始化jump-label子系统，看不懂
+	parse_early_param();//解析early options这两个参数
 
 	/*
 	 * Unmask asynchronous aborts and fiq after bringing up possible
 	 * earlycon. (Report possible System Errors once we can report this
 	 * occurred).
 	 */
-	local_daif_restore(DAIF_PROCCTX_NOIRQ);
+	local_daif_restore(DAIF_PROCCTX_NOIRQ);//恢复daif为不可以IRQ
 
 	/*
 	 * TTBR0 is only used for the identity mapping at this stage. Make it
 	 * point to zero page to avoid speculatively fetching new entries.
 	 */
-	cpu_uninstall_idmap();
+	cpu_uninstall_idmap();//移除idmap_pg_dir页表
 
-	xen_early_init();
+	xen_early_init();//不支持xen，不看
 	efi_init();
 
 	if (!efi_enabled(EFI_BOOT) && ((u64)_text % MIN_KIMG_ALIGN) != 0)
 	     pr_warn(FW_BUG "Kernel image misaligned at boot, please fix your bootloader!");
 
-	arm64_memblock_init();
+	arm64_memblock_init();//初始化memblock，到这里，不能使用的内存都放入reserved了
 
-	paging_init();
+	paging_init();//切换为细粒度映射，释放粗粒度映射页表内存，memblock初始化完成
 
-	acpi_table_upgrade();
+	acpi_table_upgrade();//解析acpi表的信息，存放到acpi_initrd_files中
 
 	/* Parse the ACPI tables for possible boot-time configuration */
-	acpi_boot_table_init();
+	acpi_boot_table_init();//解析ACPI表，获得可能的引导时配置
 
 	if (acpi_disabled)
-		unflatten_device_tree();
+		unflatten_device_tree();//解析设备树信息，创建设备节点树
 
-	bootmem_init();
+	bootmem_init();//初始化内存基本数据结构，pg_data_t,、zone、page
 
-	kasan_init();
+	kasan_init();//KASAN初始化，我们没有使用
 
 	request_standard_resources();
 
-	early_ioremap_reset();
+	early_ioremap_reset();//设置after_paging_init为1
 
 	if (acpi_disabled)
-		psci_dt_init();
+		psci_dt_init();//设备树中psci初始化
 	else
-		psci_acpi_init();
+		psci_acpi_init();//acpi种psci初始化
 
-	init_bootcpu_ops();
-	smp_init_cpus();
-	smp_build_mpidr_hash();
+	init_bootcpu_ops();//初始化cpu启动方法集合
+	smp_init_cpus();//smp的其他cpu初始化
+	smp_build_mpidr_hash();//看不懂
 
 	/* Init percpu seeds for random tags after cpus are set up. */
-	kasan_init_tags();
+	kasan_init_tags();//kasan的东西，我们没有用
 
 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
 	/*

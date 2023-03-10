@@ -42,7 +42,7 @@ static inline void cpu_set_reserved_ttbr0(void)
 {
 	unsigned long ttbr = phys_to_ttbr(__pa_symbol(reserved_pg_dir));
 
-	write_sysreg(ttbr, ttbr0_el1);
+	write_sysreg(ttbr, ttbr0_el1);//设置TTBR0为reserved_pg_dir
 	isb();
 }
 
@@ -51,8 +51,8 @@ void cpu_do_switch_mm(phys_addr_t pgd_phys, struct mm_struct *mm);
 static inline void cpu_switch_mm(pgd_t *pgd, struct mm_struct *mm)
 {
 	BUG_ON(pgd == swapper_pg_dir);
-	cpu_set_reserved_ttbr0();
-	cpu_do_switch_mm(virt_to_phys(pgd),mm);
+	cpu_set_reserved_ttbr0();//设置TTBR0
+	cpu_do_switch_mm(virt_to_phys(pgd),mm);//设置ttbrx
 }
 
 /*
@@ -113,9 +113,9 @@ static inline void cpu_uninstall_idmap(void)
 {
 	struct mm_struct *mm = current->active_mm;
 
-	cpu_set_reserved_ttbr0();
-	local_flush_tlb_all();
-	cpu_set_default_tcr_t0sz();
+	cpu_set_reserved_ttbr0();//设置TTBR0
+	local_flush_tlb_all();//冲刷TLB
+	cpu_set_default_tcr_t0sz();//设置TCR
 
 	if (mm != &init_mm && !system_uses_ttbr0_pan())
 		cpu_switch_mm(mm->pgd, mm);
@@ -123,9 +123,9 @@ static inline void cpu_uninstall_idmap(void)
 
 static inline void cpu_install_idmap(void)
 {
-	cpu_set_reserved_ttbr0();
+	cpu_set_reserved_ttbr0();//设置TTBR0
 	local_flush_tlb_all();
-	cpu_set_idmap_tcr_t0sz();
+	cpu_set_idmap_tcr_t0sz();//设置TCR.T0SZ
 
 	cpu_switch_mm(lm_alias(idmap_pg_dir), &init_mm);
 }
@@ -157,9 +157,9 @@ static inline void cpu_replace_ttbr1(pgd_t *pgdp)
 
 	replace_phys = (void *)__pa_symbol(idmap_cpu_replace_ttbr1);
 
-	cpu_install_idmap();
-	replace_phys(ttbr1);
-	cpu_uninstall_idmap();
+	cpu_install_idmap();//使用idmap_pg_dir页表
+	replace_phys(ttbr1);//猜测是修改了init_mm的pgd
+	cpu_uninstall_idmap();//移除idmap_pg_dir页表
 }
 
 /*

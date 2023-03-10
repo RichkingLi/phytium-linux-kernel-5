@@ -825,7 +825,7 @@ static void __init mm_init(void)
 	 * page_ext requires contiguous pages,
 	 * bigger than MAX_ORDER unless SPARSEMEM.
 	 */
-	page_ext_init_flatmem();
+	page_ext_init_flatmem();//我们是空洞内存，不是平坦，空函数
 	init_debug_pagealloc();
 	report_meminit();
 	mem_init();
@@ -851,38 +851,41 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	char *command_line;
 	char *after_dashes;
 
-	set_task_stack_end_magic(&init_task);
-	smp_setup_processor_id();
-	debug_objects_early_init();
+	set_task_stack_end_magic(&init_task);//获取栈边界地址，然后把 STACK_END_MAGIC这个宏设置为栈溢出的标志
+	smp_setup_processor_id();//读取或者设置处理器的ID寄存器
+	debug_objects_early_init();//我们没有开启CONFIG_DEBUG_OBJECTS，不看
 
-	cgroup_init_early();
+	cgroup_init_early();//在系统引导时初始化Cgroup
 
-	local_irq_disable();
-	early_boot_irqs_disabled = true;
+	local_irq_disable();//通过修改daifset寄存器关闭本地中断
+	early_boot_irqs_disabled = true;//表示目前处于boot状态，irq已经关闭了
 
 	/*
 	 * Interrupts are still disabled. Do necessary setups, then
 	 * enable them.
 	 */
-	boot_cpu_init();
-	page_address_init();
-	pr_notice("%s", linux_banner);
-	early_security_init();
-	setup_arch(&command_line);
+	boot_cpu_init();//记录cpu的cpumask的变量，并且数量加一
+	page_address_init();//初始化高端内存，看不懂
+	pr_notice("%s", linux_banner);//输出linux版本、编译（机器、时间）等信息
+	early_security_init();//安全相关初始化
+	setup_arch(&command_line);//处理cpu体系相关架构
 	setup_boot_config(command_line);
-	setup_command_line(command_line);
+	setup_command_line(command_line);//保存命令行参数
 	setup_nr_cpu_ids();
-	setup_per_cpu_areas();
+	setup_per_cpu_areas();//初始化每cpu数据
+	//体系结构相关的SMP初始化，还是设置每cpu数据相关的东西
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
 	boot_cpu_hotplug_init();
 
+	//继续初始化伙伴系统中的pglist_data，重点是初始化它的node_zonelist成员
 	build_all_zonelists(NULL);
-	page_alloc_init();
+	page_alloc_init();//为CPU热插拨注册内存通知链
 
 	pr_notice("Kernel command line: %s\n", saved_command_line);
 	/* parameters may set static keys */
 	jump_label_init();
-	parse_early_param();
+	parse_early_param();//解析内核参数，第一次解析
+	//第二次解析,static_command_line中是在第一阶段中未处理的参数
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
 				  __stop___param - __start___param,
@@ -899,10 +902,10 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 * kmem_cache_init()
 	 */
 	setup_log_buf(0);
-	vfs_caches_init_early();
-	sort_main_extable();
+	vfs_caches_init_early();//初始化目录项和索引节点缓存
+	sort_main_extable();//对异常表进行排序，以减少异常修复入口的查找时间
 	trap_init();
-	mm_init();
+	mm_init();//设置内核内存分配器
 
 	ftrace_init();
 
@@ -914,12 +917,12 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 * timer interrupt). Full topology setup happens at smp_init()
 	 * time - but meanwhile we still have a functioning scheduler.
 	 */
-	sched_init();
+	sched_init();//初始化调度器
 
 	if (WARN(!irqs_disabled(),
 		 "Interrupts were enabled *very* early, fixing it\n"))
 		local_irq_disable();
-	radix_tree_init();
+	radix_tree_init();//初始化文件系统中使用的基数树
 
 	/*
 	 * Set up housekeeping before setting up workqueues to allow the unbound
@@ -934,7 +937,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 */
 	workqueue_init_early();
 
-	rcu_init();
+	rcu_init();//初始化cpu相关的rcu数据结构。注册rcu回调。
 
 	/* Trace events are available after this */
 	trace_init();
@@ -944,15 +947,15 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 
 	context_tracking_init();
 	/* init some links before init_ISA_irqs() */
-	early_irq_init();
-	init_IRQ();
-	tick_init();
+	early_irq_init();//中断亲和性相关的初始化。
+	init_IRQ();//中断初始化，注册bad_irq_desc
+	tick_init();//初始化时钟
 	rcu_init_nohz();
-	init_timers();
-	hrtimers_init();
-	softirq_init();
-	timekeeping_init();
-	time_init();
+	init_timers();//初始化计时器
+	hrtimers_init();//高分辨率时钟初始化。
+	softirq_init();//软中断初始化
+	timekeeping_init();//初始化xtime
+	time_init();//初始化硬件时钟并设置计时器，注册处理函数。
 
 	/*
 	 * For best initial stack canary entropy, prepare it after:
@@ -964,34 +967,34 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	random_init(command_line);
 	boot_init_stack_canary();
 
-	perf_event_init();
+	perf_event_init();//perf事件相关的初始化。
 	profile_init();
-	call_function_init();
+	call_function_init();//smp中，为管理核间回调函数的初始化。
 	WARN(!irqs_disabled(), "Interrupts were enabled early\n");
 
-	early_boot_irqs_disabled = false;
-	local_irq_enable();
+	early_boot_irqs_disabled = false;//表示目前不在boot状态，irq打开了
+	local_irq_enable();//中断已经初始化完毕，现在要开启控制台了，打开中断。
 
-	kmem_cache_init_late();
+	kmem_cache_init_late();//块分配器的初始化，slab比较复杂，slob和slub很简单
 
 	/*
 	 * HACK ALERT! This is early. We're enabling the console before
 	 * we've done PCI setups etc, and console_init() must be aware of
 	 * this. But we do want output early, in case something goes wrong.
 	 */
-	console_init();
+	console_init();//初始化控制台
 	if (panic_later)
 		panic("Too many boot %s vars at `%s'", panic_later,
 		      panic_param);
 
-	lockdep_init();
+	lockdep_init();//输出锁的相关信息，如果开启了LOCKDEP
 
 	/*
 	 * Need to run this when irqs are enabled, because it wants
 	 * to self-test [hard/soft]-irqs on/off lock inversion bugs
 	 * too:
 	 */
-	locking_selftest();
+	locking_selftest();//测试锁依赖模块，空函数
 
 	/*
 	 * This needs to be called before any devices perform DMA
@@ -999,7 +1002,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 * mark the bounce buffers as decrypted so that their usage will
 	 * not cause "plain-text" data to be decrypted when accessed.
 	 */
-	mem_encrypt_init();
+	mem_encrypt_init();//arm下是空函数
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start && !initrd_below_start_ok &&
@@ -1010,51 +1013,52 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 		initrd_start = 0;
 	}
 #endif
-	setup_per_cpu_pageset();
-	numa_policy_init();
+	setup_per_cpu_pageset();//设置pageset，即每个zone上面的每cpu页面缓存
+	numa_policy_init();//NUMA策略初始化，申请内存记录各节点的内存信息
 	acpi_early_init();
 	if (late_time_init)
-		late_time_init();
+		late_time_init();//延后的时钟初始化操作
 	sched_clock_init();
-	calibrate_delay();
-	pid_idr_init();
-	anon_vma_init();
+	calibrate_delay();//测试BogoMIPS值，计算每个jiffy内消耗掉多少CPU周期
+	pid_idr_init();//快速执行pid分配，分配pid位图并生成slab缓存
+	anon_vma_init();//为anon_vma生成slab分配器
 #ifdef CONFIG_X86
 	if (efi_enabled(EFI_RUNTIME_SERVICES))
 		efi_enter_virtual_mode();
 #endif
-	thread_stack_cache_init();
-	cred_init();
-	fork_init();
-	proc_caches_init();
+	thread_stack_cache_init();//空函数
+	cred_init();//审计初始化，用于确定对象是否有执行某种操作的资格
+	fork_init();//初始化fork中使用的资源相关数据结构
+	proc_caches_init();//用于生成进程管理所需要的slab管理器
 	uts_ns_init();
-	buffer_init();
-	key_init();
-	security_init();
+	buffer_init();//初始化buffer,用于缓存从块设备中读取的块。为其构建slab缓存管理器。
+	key_init();//密钥服务初始化
+	security_init();//安全子系统初始化
 	dbg_late_init();
 	vfs_caches_init();
-	pagecache_init();
-	signals_init();
+	pagecache_init();//初始化页回写的工作队列
+	signals_init();//初始化以准备使用进程信号
 	seq_file_init();
-	proc_root_init();
+	proc_root_init();//注册proc文件系统并生成一些默认的proc文件
 	nsfs_init();
-	cpuset_init();
-	cgroup_init();
+	cpuset_init();//初始化cpuset子系统。设置top_cpuset并将cpuset注册到文件系统
+	cgroup_init();//继续初始化cgroup，在proc中注册cgroup
+	//taskstats是向用户空间传递任务与进程的状态信息，初始化它的netlink接口
 	taskstats_init_early();
-	delayacct_init();
+	delayacct_init();//初始化delayacct模块，用于对任务的io延迟进行统计
 
 	poking_init();
-	check_bugs();
+	check_bugs();//CPU缺陷检查，对arm架构来说，主要是测试写缓存别名
 
-	acpi_subsystem_init();
-	arch_post_acpi_subsys_init();
+	acpi_subsystem_init();//完成ACPI的早期初始化。
+	arch_post_acpi_subsys_init();//空函数
 	sfi_init_late();
 	kcsan_init();
 
 	/* Do the rest non-__init'ed, we're now alive */
-	arch_call_rest_init();
+	arch_call_rest_init();//生成init进程和内核线程。
 
-	prevent_tail_call_optimization();
+	prevent_tail_call_optimization();//内存屏障，防止尾部调用优化
 }
 
 /* Call all constructor functions linked into the kernel. */

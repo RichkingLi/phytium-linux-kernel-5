@@ -5734,13 +5734,13 @@ void __init hugetlb_cma_reserve(int order)
 
 	cma_reserve_called = true;
 
-	if (!hugetlb_cma_size)
-		return;
+	if (!hugetlb_cma_size)//如果启动参数没有指定内存
+		return;//直接返回
 
-	if (hugetlb_cma_size < (PAGE_SIZE << order)) {
+	if (hugetlb_cma_size < (PAGE_SIZE << order)) {//如果指定的内存太小
 		pr_warn("hugetlb_cma: cma area should be at least %lu MiB\n",
 			(PAGE_SIZE << order) / SZ_1M);
-		return;
+		return;//觉得没什么鬼用，返回
 	}
 
 	/*
