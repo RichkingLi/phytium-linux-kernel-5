@@ -571,11 +571,12 @@ struct kmem_cache *__init create_kmalloc_cache(const char *name,
 		unsigned int size, slab_flags_t flags,
 		unsigned int useroffset, unsigned int usersize)
 {
-	struct kmem_cache *s = kmem_cache_zalloc(kmem_cache, GFP_NOWAIT);
+	struct kmem_cache *s = kmem_cache_zalloc(kmem_cache, GFP_NOWAIT);//分配kmem_cache结构体
 
 	if (!s)
 		panic("Out of memory when creating slab %s\n", name);
 
+	//初始化kmem_cache，并且为其分配缓存
 	create_boot_cache(s, name, size, flags, useroffset, usersize);
 	list_add(&s->list, &slab_caches);
 	s->refcount = 1;
@@ -768,6 +769,7 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 	int i;
 	enum kmalloc_cache_type type;
 
+	//遍历几种类型，不同大小的kmalloc_caches，初始化缓存
 	for (type = KMALLOC_NORMAL; type <= KMALLOC_RECLAIM; type++) {
 		for (i = KMALLOC_SHIFT_LOW; i <= KMALLOC_SHIFT_HIGH; i++) {
 			if (!kmalloc_caches[type][i])
@@ -791,6 +793,7 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 	slab_state = UP;
 
 #ifdef CONFIG_ZONE_DMA
+	//初始化dma-kmalloc类型不同大小的kmalloc_caches，初始化缓存
 	for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
 		struct kmem_cache *s = kmalloc_caches[KMALLOC_NORMAL][i];
 

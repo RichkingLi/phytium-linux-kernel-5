@@ -4368,31 +4368,33 @@ void __init kmem_cache_init(void)
 	kmem_cache_node = &boot_kmem_cache_node;
 	kmem_cache = &boot_kmem_cache;
 
+	//初始化kmem_cache_node，kmem_cache_node是静态分配的内存
+	//kmem_cache_node结构体是一个双向链表，保存了所有kmem_cache_desc结构体（存储所有slab缓存信息）的指针。
 	create_boot_cache(kmem_cache_node, "kmem_cache_node",
 		sizeof(struct kmem_cache_node), SLAB_HWCACHE_ALIGN, 0, 0);
 
-	register_hotmemory_notifier(&slab_memory_callback_nb);
+	register_hotmemory_notifier(&slab_memory_callback_nb);//不支持内存热插拔，空
 
 	/* Able to allocate the per node structures */
 	slab_state = PARTIAL;
-
+	//初始化kmem_cache
 	create_boot_cache(kmem_cache, "kmem_cache",
 			offsetof(struct kmem_cache, node) +
 				nr_node_ids * sizeof(struct kmem_cache_node *),
 		       SLAB_HWCACHE_ALIGN, 0, 0);
 
-	kmem_cache = bootstrap(&boot_kmem_cache);
-	kmem_cache_node = bootstrap(&boot_kmem_cache_node);
+	kmem_cache = bootstrap(&boot_kmem_cache);//修复kmem_cache
+	kmem_cache_node = bootstrap(&boot_kmem_cache_node);//修复kmem_cache_node
 
 	/* Now we can use the kmem_cache to allocate kmalloc slabs */
-	setup_kmalloc_cache_index_table();
-	create_kmalloc_caches(0);
+	setup_kmalloc_cache_index_table();//初始化内存缓存和内存对象的索引表，加速kmalloc和kfree的执行速度
+	create_kmalloc_caches(0);//创建和初始化kmalloc的kmem_cache
 
 	/* Setup random freelists for each cache */
-	init_freelist_randomization();
+	init_freelist_randomization();//需要CONFIG_SLAB_FREELIST_RANDOM
 
 	cpuhp_setup_state_nocalls(CPUHP_SLUB_DEAD, "slub:dead", NULL,
-				  slub_cpu_dead);
+				  slub_cpu_dead);//设置CPU热插拔中的CPU状态，避免不必要的回调
 
 	pr_info("SLUB: HWalign=%d, Order=%u-%u, MinObjects=%u, CPUs=%u, Nodes=%u\n",
 		cache_line_size(),

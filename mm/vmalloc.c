@@ -1936,13 +1936,15 @@ static void vmap_init_free_space(void)
 	 *  |           The KVA space           |
 	 *  |<--------------------------------->|
 	 */
+	
 	list_for_each_entry(busy, &vmap_area_list, list) {
 		if (busy->va_start - vmap_start > 0) {
+			//分配一段内存用于缓存 vmap 区域
 			free = kmem_cache_zalloc(vmap_area_cachep, GFP_NOWAIT);
 			if (!WARN_ON_ONCE(!free)) {
 				free->va_start = vmap_start;
 				free->va_end = busy->va_start;
-
+				//将缓存区域映射到 vmalloc 区域的虚拟地址空间中
 				insert_vmap_area_augment(free, NULL,
 					&free_vmap_area_root,
 						&free_vmap_area_list);
@@ -1953,11 +1955,12 @@ static void vmap_init_free_space(void)
 	}
 
 	if (vmap_end - vmap_start > 0) {
+		//分配一段内存用于缓存 vmap 区域
 		free = kmem_cache_zalloc(vmap_area_cachep, GFP_NOWAIT);
 		if (!WARN_ON_ONCE(!free)) {
 			free->va_start = vmap_start;
 			free->va_end = vmap_end;
-
+			//将缓存区域映射到 vmalloc 区域的虚拟地址空间中
 			insert_vmap_area_augment(free, NULL,
 				&free_vmap_area_root,
 					&free_vmap_area_list);
@@ -1974,21 +1977,22 @@ void __init vmalloc_init(void)
 	/*
 	 * Create the cache for vmap_area objects.
 	 */
-	vmap_area_cachep = KMEM_CACHE(vmap_area, SLAB_PANIC);
+	vmap_area_cachep = KMEM_CACHE(vmap_area, SLAB_PANIC);//使用kmem_cache_create创建slab
 
-	for_each_possible_cpu(i) {
+	for_each_possible_cpu(i) {//遍历每一个cpu
 		struct vmap_block_queue *vbq;
 		struct vfree_deferred *p;
 
-		vbq = &per_cpu(vmap_block_queue, i);
-		spin_lock_init(&vbq->lock);
-		INIT_LIST_HEAD(&vbq->free);
-		p = &per_cpu(vfree_deferred, i);
-		init_llist_head(&p->list);
-		INIT_WORK(&p->wq, free_work);
+		vbq = &per_cpu(vmap_block_queue, i);//找到pcpu的vmap_block_queue
+		spin_lock_init(&vbq->lock);//初始化vmap_block_queue的自旋锁
+		INIT_LIST_HEAD(&vbq->free);//初始化vmap_block_queue的链表
+		p = &per_cpu(vfree_deferred, i);//找到pcpu的vfree_deferred
+		init_llist_head(&p->list);//初始化vfree_deferred的链表头
+		INIT_WORK(&p->wq, free_work);//初始化vfree_deferred的工作队列
 	}
 
 	/* Import existing vmlist entries. */
+	//导入已有的vmlist表项
 	for (tmp = vmlist; tmp; tmp = tmp->next) {
 		va = kmem_cache_zalloc(vmap_area_cachep, GFP_NOWAIT);
 		if (WARN_ON_ONCE(!va))
@@ -2003,7 +2007,7 @@ void __init vmalloc_init(void)
 	/*
 	 * Now we can initialize a free vmap space.
 	 */
-	vmap_init_free_space();
+	vmap_init_free_space();//初始化vmalloc高速缓存空闲池
 	vmap_initialized = true;
 }
 

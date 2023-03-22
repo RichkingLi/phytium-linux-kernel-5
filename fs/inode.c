@@ -2072,7 +2072,7 @@ void __init inode_init_early(void)
 	 */
 	if (hashdist)
 		return;
-
+	//从memblock中分配一个大的Inode cache哈希表
 	inode_hashtable =
 		alloc_large_system_hash("Inode-cache",
 					sizeof(struct hlist_head),

@@ -118,7 +118,7 @@ static inline void printk_safe_flush_line(const char *text, int len)
 	 * must go only into the ring buffer at this stage.  Consoles will
 	 * get explicitly called later when a crashdump is not generated.
 	 */
-	printk_deferred("%.*s", len, text);
+	printk_deferred("%.*s", len, text);//printk信息输出
 }
 
 /* printk part of the temporary buffer line by line */
@@ -180,6 +180,7 @@ static void report_message_lost(struct printk_safe_seq_buf *s)
  * Flush data from the associated per-CPU buffer. The function
  * can be called either via IRQ work or independently.
  */
+//从相关的每cpu缓冲区刷新数据。
 static void __printk_safe_flush(struct irq_work *work)
 {
 	struct printk_safe_seq_buf *s =
@@ -405,18 +406,19 @@ void __init printk_safe_init(void)
 {
 	int cpu;
 
-	for_each_possible_cpu(cpu) {
+	for_each_possible_cpu(cpu) {//遍历每一个cpu
 		struct printk_safe_seq_buf *s;
-
+		//初始化每个cpu的工作函数，可以在中断上下文执行的那种
 		s = &per_cpu(safe_print_seq, cpu);
 		init_irq_work(&s->work, __printk_safe_flush);
 
 #ifdef CONFIG_PRINTK_NMI
+		//初始化每个cpu的工作函数，可以在中断上下文执行的那种
 		s = &per_cpu(nmi_print_seq, cpu);
 		init_irq_work(&s->work, __printk_safe_flush);
 #endif
 	}
 
 	/* Flush pending messages that did not have scheduled IRQ works. */
-	printk_safe_flush();
+	printk_safe_flush();//刷新所有cpu 缓冲区，就是把信息输出来
 }

@@ -317,9 +317,9 @@ enum zone_watermarks {
 #define wmark_pages(z, i) (z->_watermark[i] + z->watermark_boost)
 
 struct per_cpu_pages {
-	int count;		/* number of pages in the list */
-	int high;		/* high watermark, emptying needed */
-	int batch;		/* chunk size for buddy add/remove */
+	int count;		//pcpu中页的数量/* number of pages in the list */
+	int high;		//pcpu中页的最大数量/* high watermark, emptying needed */
+	int batch;		//pcpu中页一次添加或者移除的数量/* chunk size for buddy add/remove */
 
 	/* Lists of pages, one per migrate type stored on the pcp-lists */
 	struct list_head lists[MIGRATE_PCPTYPES];

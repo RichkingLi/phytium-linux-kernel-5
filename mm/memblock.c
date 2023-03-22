@@ -1903,12 +1903,13 @@ static void __init __free_pages_memory(unsigned long start, unsigned long end)
 {
 	int order;
 
-	while (start < end) {
-		order = min(MAX_ORDER - 1UL, __ffs(start));
+	while (start < end) {//直到start赶上end
+		order = min(MAX_ORDER - 1UL, __ffs(start));//计算start的order
 
 		while (start + (1UL << order) > end)
 			order--;
 
+		//把这个页块放入到伙伴系统中，并且初始化这个page的_refcount和flage
 		memblock_free_pages(pfn_to_page(start), start, order);
 
 		start += (1UL << order);
@@ -1924,7 +1925,7 @@ static unsigned long __init __free_memory_core(phys_addr_t start,
 
 	if (start_pfn >= end_pfn)
 		return 0;
-
+	//把[start_pfn,end_pfn]放入到伙伴系统中，并且初始化这个page的_refcount和flage
 	__free_pages_memory(start_pfn, end_pfn);
 
 	return end_pfn - start_pfn;
@@ -1936,9 +1937,11 @@ static unsigned long __init free_low_memory_core_early(void)
 	phys_addr_t start, end;
 	u64 i;
 
-	memblock_clear_hotplug(0, -1);
+	memblock_clear_hotplug(0, -1);//清除整个memblock的hotplug标志位
 
+	//遍历每一个reserved区域
 	for_each_reserved_mem_range(i, &start, &end)
+		//如果他在reserved区域是有效的，初始化page的lru链表，设置flags
 		reserve_bootmem_region(start, end);
 
 	/*
@@ -1946,8 +1949,10 @@ static unsigned long __init free_low_memory_core_early(void)
 	 *  because in some case like Node0 doesn't have RAM installed
 	 *  low ram will be on Node1
 	 */
+	//遍历空闲内存块区域，就是一个个的找memory存在但是reserved不在的内存
 	for_each_free_mem_range(i, NUMA_NO_NODE, MEMBLOCK_NONE, &start, &end,
 				NULL)
+		//把[start,end]放入到伙伴系统中，并且初始化这个page的_refcount和flage
 		count += __free_memory_core(start, end);
 
 	return count;
@@ -1958,21 +1963,23 @@ static int reset_managed_pages_done __initdata;
 void reset_node_managed_pages(pg_data_t *pgdat)
 {
 	struct zone *z;
-
+	//遍历节点的每一个zone
 	for (z = pgdat->node_zones; z < pgdat->node_zones + MAX_NR_ZONES; z++)
-		atomic_long_set(&z->managed_pages, 0);
+		atomic_long_set(&z->managed_pages, 0);//初始化zone的managed_pages为0
 }
 
 void __init reset_all_zones_managed_pages(void)
 {
 	struct pglist_data *pgdat;
 
+	//reset_managed_pages_done初值为0，后面设置为1，表示这个函数只会运行一次
 	if (reset_managed_pages_done)
 		return;
 
-	for_each_online_pgdat(pgdat)
-		reset_node_managed_pages(pgdat);
+	for_each_online_pgdat(pgdat)//遍历每一个内存节点
+		reset_node_managed_pages(pgdat);//遍历节点的每一个zone，初始化其managed_pages
 
+	//设置为1，表示reset_all_zones_managed_pages这个函数已经运行过了
 	reset_managed_pages_done = 1;
 }
 
@@ -1985,10 +1992,10 @@ unsigned long __init memblock_free_all(void)
 {
 	unsigned long pages;
 
-	reset_all_zones_managed_pages();
+	reset_all_zones_managed_pages();//初始化每一个节点中的每一个zone的managed_pages为0
 
-	pages = free_low_memory_core_early();
-	totalram_pages_add(pages);
+	pages = free_low_memory_core_early();//把所有的空闲的page放入伙伴系统中
+	totalram_pages_add(pages);//更新全局变量总内存页数_totalram_pages
 
 	return pages;
 }

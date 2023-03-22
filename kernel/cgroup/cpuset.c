@@ -3382,7 +3382,7 @@ void cpuset_cpus_allowed_fallback(struct task_struct *tsk)
 
 void __init cpuset_init_current_mems_allowed(void)
 {
-	nodes_setall(current->mems_allowed);
+	nodes_setall(current->mems_allowed);//设置当前进程包含的内存节点
 }
 
 /**

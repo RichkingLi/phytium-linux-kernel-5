@@ -416,6 +416,7 @@ static void __init setup_boot_config(const char *cmdline)
 	int ret;
 
 	/* Cut out the bootconfig data even if we have no bootconfig option */
+	//获取引导配置数据
 	data = get_boot_config_from_initrd(&size, &csum);
 
 	strlcpy(tmp_cmdline, boot_command_line, COMMAND_LINE_SIZE);
@@ -454,7 +455,7 @@ static void __init setup_boot_config(const char *cmdline)
 	memcpy(copy, data, size);
 	copy[size] = '\0';
 
-	ret = xbc_init(copy, &msg, &pos);
+	ret = xbc_init(copy, &msg, &pos);//解析XBC文件并初始化XBC内部树
 	if (ret < 0) {
 		if (pos < 0)
 			pr_err("Failed to init bootconfig: %s.\n", msg);
@@ -757,8 +758,8 @@ void __init parse_early_param(void)
 		return;
 
 	/* All fall through to do_early_param. */
-	strlcpy(tmp_cmdline, boot_command_line, COMMAND_LINE_SIZE);
-	parse_early_options(tmp_cmdline);
+	strlcpy(tmp_cmdline, boot_command_line, COMMAND_LINE_SIZE);//拷贝启动参数到tmp_cmdline
+	parse_early_options(tmp_cmdline);//解析启动参数的early或者options，如果有运行函数early options
 	done = 1;
 }
 
@@ -826,19 +827,20 @@ static void __init mm_init(void)
 	 * bigger than MAX_ORDER unless SPARSEMEM.
 	 */
 	page_ext_init_flatmem();//我们是空洞内存，不是平坦，空函数
-	init_debug_pagealloc();
-	report_meminit();
-	mem_init();
-	kmem_cache_init();
-	kmemleak_init();
-	pgtable_init();
-	debug_objects_mem_init();
-	vmalloc_init();
-	ioremap_huge_init();
+	init_debug_pagealloc();//初始化页分配器的debug功能
+	report_meminit();//报告内存自动初始化状态
+	mem_init();//把空闲区域放入伙伴管理系统
+	//初始化kmem_cache_node和kmem_cache，为后面使用kmem_cache打下基础
+	kmem_cache_init();//同时创建kmalloc的3种类型不同大小的kmem_cache
+	kmemleak_init();//kmemleak的初始化，单数需要开启kmemleak
+	pgtable_init();//初始化页表相关，包括页表锁cache和页表cache
+	debug_objects_mem_init();//需要开启CONFIG_DEBUG_OBJECTS
+	vmalloc_init();//vmalloc的初始化，
+	ioremap_huge_init();//根据config填写各级是否支持大页
 	/* Should be run before the first non-init thread is created */
-	init_espfix_bsp();
+	init_espfix_bsp();//空函数
 	/* Should be run after espfix64 is set up. */
-	pti_init();
+	pti_init();//启用 PTI 技术，实现了内核和用户空间之间的内存隔离
 }
 
 void __init __weak arch_call_rest_init(void)
@@ -869,30 +871,32 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	pr_notice("%s", linux_banner);//输出linux版本、编译（机器、时间）等信息
 	early_security_init();//安全相关初始化
 	setup_arch(&command_line);//处理cpu体系相关架构
-	setup_boot_config(command_line);
-	setup_command_line(command_line);//保存命令行参数
-	setup_nr_cpu_ids();
+	setup_boot_config(command_line);//解析关于引导的启动参数，比如kernel、init
+	setup_command_line(command_line);//保存命令行参数，包括已经使用过的和没有用过的
+	setup_nr_cpu_ids();//设置nr_cpu_ids
 	setup_per_cpu_areas();//初始化每cpu数据
 	//体系结构相关的SMP初始化，还是设置每cpu数据相关的东西
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
-	boot_cpu_hotplug_init();
+	boot_cpu_hotplug_init();//设置cpus_booted_once_mask
 
 	//继续初始化伙伴系统中的pglist_data，重点是初始化它的node_zonelist成员
-	build_all_zonelists(NULL);
-	page_alloc_init();//为CPU热插拨注册内存通知链
+	build_all_zonelists(NULL);//还在这里计算空闲页面数量，判断是否开启移动分组
+	page_alloc_init();//为CPU热插拨注册内存通知链，设置回调函数
 
 	pr_notice("Kernel command line: %s\n", saved_command_line);
 	/* parameters may set static keys */
-	jump_label_init();
-	parse_early_param();//解析内核参数，第一次解析
-	//第二次解析,static_command_line中是在第一阶段中未处理的参数
+	jump_label_init();//看不懂
+	parse_early_param();//解析内核参数，第一次解析，看看是否启用早期控制台输出
+	//第二次解析,static_command_line中是在第一阶段中未处理的参数，解析看看env和init
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
 				  __stop___param - __start___param,
 				  -1, -1, NULL, &unknown_bootoption);
+	//解析参数init
 	if (!IS_ERR_OR_NULL(after_dashes))
 		parse_args("Setting init args", after_dashes, NULL, 0, -1, -1,
 			   NULL, set_init_arg);
+	//解析外部的参数init
 	if (extra_init_args)
 		parse_args("Setting extra init args", extra_init_args,
 			   NULL, 0, -1, -1, NULL, set_init_arg);
@@ -901,10 +905,10 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 * These use large bootmem allocations and must precede
 	 * kmem_cache_init()
 	 */
-	setup_log_buf(0);
+	setup_log_buf(0);//初始化printk需要的内存
 	vfs_caches_init_early();//初始化目录项和索引节点缓存
 	sort_main_extable();//对异常表进行排序，以减少异常修复入口的查找时间
-	trap_init();
+	trap_init();//初始化断点，向kernel_break_hook加入各种钩子
 	mm_init();//设置内核内存分配器
 
 	ftrace_init();

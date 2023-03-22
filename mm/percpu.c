@@ -2927,7 +2927,7 @@ int __init pcpu_embed_first_chunk(size_t reserved_size, size_t dyn_size,
 		PFN_DOWN(size_sum), ai->static_size, ai->reserved_size,
 		ai->dyn_size, ai->unit_size);
 
-	pcpu_setup_first_chunk(ai, base);
+	pcpu_setup_first_chunk(ai, base);//初始化第一个percpu块
 	goto out_free;
 
 out_free_areas:

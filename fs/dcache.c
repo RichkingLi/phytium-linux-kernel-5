@@ -3165,7 +3165,7 @@ static void __init dcache_init_early(void)
 	 */
 	if (hashdist)
 		return;
-
+	//从memblock中分配一个大的Dentry cache哈希表
 	dentry_hashtable =
 		alloc_large_system_hash("Dentry cache",
 					sizeof(struct hlist_bl_head),
@@ -3216,10 +3216,10 @@ void __init vfs_caches_init_early(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(in_lookup_hashtable); i++)
-		INIT_HLIST_BL_HEAD(&in_lookup_hashtable[i]);
+		INIT_HLIST_BL_HEAD(&in_lookup_hashtable[i]);//初始化哈希表
 
-	dcache_init_early();
-	inode_init_early();
+	dcache_init_early();//初始化存放目录的哈希表
+	inode_init_early();//初始化存放节点的哈希表
 }
 
 void __init vfs_caches_init(void)

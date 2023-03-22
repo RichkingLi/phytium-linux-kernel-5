@@ -2222,8 +2222,8 @@ static inline void ptlock_free(struct page *page) {}
 
 static inline void pgtable_init(void)
 {
-	ptlock_cache_init();
-	pgtable_cache_init();
+	ptlock_cache_init();//空函数
+	pgtable_cache_init();//创建用于页表cache：pgd_cache，但是大部分pgd大小为一页，所以没有创建
 }
 
 static inline bool pgtable_pte_page_ctor(struct page *page)
@@ -2946,7 +2946,8 @@ extern bool _debug_pagealloc_enabled_early;
 DECLARE_STATIC_KEY_FALSE(_debug_pagealloc_enabled);
 
 static inline bool debug_pagealloc_enabled(void)
-{
+{	
+	//需要配置内核和在启动参数设置debug_pagealloc=y
 	return IS_ENABLED(CONFIG_DEBUG_PAGEALLOC) &&
 		_debug_pagealloc_enabled_early;
 }

@@ -1055,6 +1055,7 @@ static void __init log_buf_add_cpu(void)
 	if (num_possible_cpus() == 1)
 		return;
 
+	//计算printk需要的buff大小
 	cpu_extra = (num_possible_cpus() - 1) * __LOG_CPU_MAX_BUF_LEN;
 
 	/* by default this will only continue through for large > 64 CPUs */
@@ -1067,7 +1068,7 @@ static void __init log_buf_add_cpu(void)
 		cpu_extra);
 	pr_info("log_buf_len min size: %d bytes\n", __LOG_BUF_LEN);
 
-	log_buf_len_update(cpu_extra + __LOG_BUF_LEN);
+	log_buf_len_update(cpu_extra + __LOG_BUF_LEN);//修改new_log_buf_len这个printk的buff大小
 }
 #else /* !CONFIG_SMP */
 static inline void log_buf_add_cpu(void) {}
@@ -1075,9 +1076,9 @@ static inline void log_buf_add_cpu(void) {}
 
 static void __init set_percpu_data_ready(void)
 {
-	printk_safe_init();
+	printk_safe_init();//初始化printk的work函数，并且把前面的缓存的信息打印出来
 	/* Make sure we set this flag only after printk_safe() init is done */
-	barrier();
+	barrier();//内存屏障
 	__printk_percpu_data_ready = true;
 }
 
@@ -1128,15 +1129,15 @@ void __init setup_log_buf(int early)
 	 * are initialised.
 	 */
 	if (!early)
-		set_percpu_data_ready();
+		set_percpu_data_ready();//设置pepu的printk任何东西准备好
 
 	if (log_buf != __log_buf)
 		return;
 
-	if (!early && !new_log_buf_len)
-		log_buf_add_cpu();
+	if (!early && !new_log_buf_len)//如果new_log_buf_len还没有被设置，它就是printk的buff大小，
+		log_buf_add_cpu();//根据cpu数量计算printk需要的buff大小，如果不够大就修改它
 
-	if (!new_log_buf_len)
+	if (!new_log_buf_len)//如果buff大小是0
 		return;
 
 	new_descs_count = new_log_buf_len >> PRB_AVGBITS;
@@ -1144,7 +1145,7 @@ void __init setup_log_buf(int early)
 		pr_err("new_log_buf_len: %lu too small\n", new_log_buf_len);
 		return;
 	}
-
+	//申请内存
 	new_log_buf = memblock_alloc(new_log_buf_len, LOG_ALIGN);
 	if (unlikely(!new_log_buf)) {
 		pr_err("log_buf_len: %lu text bytes not available\n",
@@ -1168,8 +1169,9 @@ void __init setup_log_buf(int early)
 		goto err_free_descs;
 	}
 
+	//为读取记录初始化一个缓冲区。
 	prb_rec_init_rd(&r, &info, &setup_text_buf[0], sizeof(setup_text_buf));
-
+	//初始化一个ringbuffer以使用提供的外部缓冲区。
 	prb_init(&printk_rb_dynamic,
 		 new_log_buf, ilog2(new_log_buf_len),
 		 new_descs, ilog2(new_descs_count),

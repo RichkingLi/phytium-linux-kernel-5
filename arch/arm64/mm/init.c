@@ -250,10 +250,11 @@ int pfn_valid(unsigned long pfn)
 		return 0;
 
 #ifdef CONFIG_SPARSEMEM
+	//如果pfn所在的section大于内核支持的最大section
 	if (pfn_to_section_nr(pfn) >= NR_MEM_SECTIONS)
 		return 0;
 
-	if (!valid_section(__pfn_to_section(pfn)))
+	if (!valid_section(__pfn_to_section(pfn)))//查看所在的section是否有效
 		return 0;
 
 	/*
@@ -268,7 +269,7 @@ int pfn_valid(unsigned long pfn)
 	if (!early_section(__pfn_to_section(pfn)))
 		return pfn_section_valid(__pfn_to_section(pfn), pfn);
 #endif
-	return memblock_is_map_memory(addr);
+	return memblock_is_map_memory(addr);//该页在memory找到，并且标志位设置为map
 }
 EXPORT_SYMBOL(pfn_valid);
 
@@ -513,7 +514,7 @@ static inline void free_memmap(unsigned long start_pfn, unsigned long end_pfn)
 	 * memmap array.
 	 */
 	if (pg < pgend)
-		memblock_free(pg, pgend - pg);
+		memblock_free(pg, pgend - pg);//释放reserved中的内存块
 }
 
 /*
@@ -523,7 +524,7 @@ static void __init free_unused_memmap(void)
 {
 	unsigned long start, end, prev_end = 0;
 	int i;
-
+	//遍历memblock.memory的每一个memblock_region
 	for_each_mem_pfn_range(i, MAX_NUMNODES, &start, &end, NULL) {
 #ifdef CONFIG_SPARSEMEM
 		/*
@@ -537,7 +538,7 @@ static void __init free_unused_memmap(void)
 		 * current bank and the previous, free it.
 		 */
 		if (prev_end && prev_end < start)
-			free_memmap(prev_end, start);
+			free_memmap(prev_end, start);//释放这些物理内存
 
 		/*
 		 * Align up here since the VM subsystem insists that the
@@ -549,7 +550,7 @@ static void __init free_unused_memmap(void)
 
 #ifdef CONFIG_SPARSEMEM
 	if (!IS_ALIGNED(prev_end, PAGES_PER_SECTION))
-		free_memmap(prev_end, ALIGN(prev_end, PAGES_PER_SECTION));
+		free_memmap(prev_end, ALIGN(prev_end, PAGES_PER_SECTION));//释放最后一块
 #endif
 }
 #endif	/* !CONFIG_SPARSEMEM_VMEMMAP */
@@ -567,15 +568,15 @@ void __init mem_init(void)
 	else
 		swiotlb_force = SWIOTLB_NO_FORCE;
 
-	set_max_mapnr(max_pfn - PHYS_PFN_OFFSET);
+	set_max_mapnr(max_pfn - PHYS_PFN_OFFSET);//空函数
 
-#ifndef CONFIG_SPARSEMEM_VMEMMAP
-	free_unused_memmap();
+#ifndef CONFIG_SPARSEMEM_VMEMMAP	
+	free_unused_memmap();//把没有使用到的内存，就是reserved的内存释放掉，支持VMEMMAP不用跑
 #endif
 	/* this will put all unused low memory onto the freelists */
-	memblock_free_all();
+	memblock_free_all();//初始化空闲页面，将其释放到伙伴分配器
 
-	mem_init_print_info(NULL);
+	mem_init_print_info(NULL);//内存初始化的信息输出
 
 	/*
 	 * Check boundaries twice: Some fundamental inconsistencies can be

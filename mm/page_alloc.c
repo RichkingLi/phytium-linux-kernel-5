@@ -732,7 +732,7 @@ early_param("debug_pagealloc", early_debug_pagealloc);
 
 void init_debug_pagealloc(void)
 {
-	if (!debug_pagealloc_enabled())
+	if (!debug_pagealloc_enabled())//如果没有开启debug
 		return;
 
 	static_branch_enable(&_debug_pagealloc_enabled);
@@ -1226,6 +1226,7 @@ static __always_inline bool free_pages_prepare(struct page *page,
 	 * Check tail pages before head page information is cleared to
 	 * avoid checking PageCompound for order-0 pages.
 	 */
+	//如果是复合页
 	if (unlikely(order)) {
 		bool compound = PageCompound(page);
 		int i;
@@ -1493,20 +1494,20 @@ void __meminit reserve_bootmem_region(phys_addr_t start, phys_addr_t end)
 	unsigned long end_pfn = PFN_UP(end);
 
 	for (; start_pfn < end_pfn; start_pfn++) {
-		if (pfn_valid(start_pfn)) {
+		if (pfn_valid(start_pfn)) {//如果页帧有效
 			struct page *page = pfn_to_page(start_pfn);
 
-			init_reserved_page(start_pfn);
+			init_reserved_page(start_pfn);//空函数
 
 			/* Avoid false-positive PageTail() */
-			INIT_LIST_HEAD(&page->lru);
+			INIT_LIST_HEAD(&page->lru);//初始化page的lru链表
 
 			/*
 			 * no need for atomic set_bit because the struct
 			 * page is not visible yet so nobody should
 			 * access it yet.
 			 */
-			__SetPageReserved(page);
+			__SetPageReserved(page);//设置page的flags成员的PG_reserved标志，表示他是一个特殊的页
 		}
 	}
 }
@@ -1516,17 +1517,17 @@ static void __free_pages_ok(struct page *page, unsigned int order,
 {
 	unsigned long flags;
 	int migratetype;
-	unsigned long pfn = page_to_pfn(page);
+	unsigned long pfn = page_to_pfn(page);//计算页帧号
 
-	if (!free_pages_prepare(page, order, true))
+	if (!free_pages_prepare(page, order, true))//如果没有准备好释放页
 		return;
 
-	migratetype = get_pfnblock_migratetype(page, pfn);
-	local_irq_save(flags);
+	migratetype = get_pfnblock_migratetype(page, pfn);//获取页的可迁移类型
+	local_irq_save(flags);//关中断
 	__count_vm_events(PGFREE, 1 << order);
 	free_one_page(page_zone(page), page, pfn, order, migratetype,
-		      fpi_flags);
-	local_irq_restore(flags);
+		      fpi_flags);//释放一个page，有空再深追
+	local_irq_restore(flags);//开中断
 }
 
 void __free_pages_core(struct page *page, unsigned int order)
@@ -1540,22 +1541,22 @@ void __free_pages_core(struct page *page, unsigned int order)
 	 * of all pages to 1 ("allocated"/"not free"). We have to set the
 	 * refcount of all involved pages to 0.
 	 */
-	prefetchw(p);
+	prefetchw(p);//p数据也就是page，预取到cache中，从而提升性能
 	for (loop = 0; loop < (nr_pages - 1); loop++, p++) {
-		prefetchw(p + 1);
-		__ClearPageReserved(p);
-		set_page_count(p, 0);
+		prefetchw(p + 1);//下一个page预取到cache中
+		__ClearPageReserved(p);//清除page的flags成员的PG_reserved标志
+		set_page_count(p, 0);//设置page的_refcount计数为0
 	}
-	__ClearPageReserved(p);
-	set_page_count(p, 0);
+	__ClearPageReserved(p);//清除page的flags成员的PG_reserved标志
+	set_page_count(p, 0);//设置page的_refcount计数为0
 
-	atomic_long_add(nr_pages, &page_zone(page)->managed_pages);
+	atomic_long_add(nr_pages, &page_zone(page)->managed_pages);//zone的managed_pages计数更新
 
 	/*
 	 * Bypass PCP and place fresh pages right to the tail, primarily
 	 * relevant for memory onlining.
 	 */
-	__free_pages_ok(page, order, FPI_TO_TAIL);
+	__free_pages_ok(page, order, FPI_TO_TAIL);//释放页
 }
 
 #ifdef CONFIG_NEED_MULTIPLE_NODES
@@ -1605,9 +1606,9 @@ int __meminit early_pfn_to_nid(unsigned long pfn)
 void __init memblock_free_pages(struct page *page, unsigned long pfn,
 							unsigned int order)
 {
-	if (early_page_uninitialised(pfn))
+	if (early_page_uninitialised(pfn))//永远返回0
 		return;
-	__free_pages_core(page, order);
+	__free_pages_core(page, order);//把memblock内存添加到伙伴系统的核心函数
 }
 
 /*
@@ -5512,12 +5513,12 @@ static int build_zonerefs_node(pg_data_t *pgdat, struct zoneref *zonerefs)
 	enum zone_type zone_type = MAX_NR_ZONES;
 	int nr_zones = 0;
 
-	do {
+	do {//遍历pgdat的所有zone
 		zone_type--;
-		zone = pgdat->node_zones + zone_type;
-		if (populated_zone(zone)) {
-			zoneref_set_zone(zone, &zonerefs[nr_zones++]);
-			check_highest_zone(zone_type);
+		zone = pgdat->node_zones + zone_type;//获取zone
+		if (populated_zone(zone)) {//如果这个zone有内存
+			zoneref_set_zone(zone, &zonerefs[nr_zones++]);//填充zonerefs的zone
+			check_highest_zone(zone_type);//空函数
 		}
 	} while (zone_type);
 
@@ -5728,7 +5729,8 @@ static void build_zonelists(pg_data_t *pgdat)
 	local_node = pgdat->node_id;
 
 	zonerefs = pgdat->node_zonelists[ZONELIST_FALLBACK]._zonerefs;
-	nr_zones = build_zonerefs_node(pgdat, zonerefs);
+	//构建local_node的分配回退区域列表
+	nr_zones = build_zonerefs_node(pgdat, zonerefs);//给pgdat填充zonerefs
 	zonerefs += nr_zones;
 
 	/*
@@ -5739,16 +5741,20 @@ static void build_zonelists(pg_data_t *pgdat)
 	 * zones coming right after the local ones are those from
 	 * node N+1 (modulo N)
 	 */
+	//从local_node+1开始遍历，直到MAX_NUMNODES
 	for (node = local_node + 1; node < MAX_NUMNODES; node++) {
 		if (!node_online(node))
 			continue;
-		nr_zones = build_zonerefs_node(NODE_DATA(node), zonerefs);
+		//对其他的  node 的 pgdat 里面的 zone填到充zonerefs
+		nr_zones = build_zonerefs_node(NODE_DATA(node), zonerefs);//给pgdat填充zonerefs
 		zonerefs += nr_zones;
 	}
+	//从0开始遍历，直到local_node
 	for (node = 0; node < local_node; node++) {
 		if (!node_online(node))
 			continue;
-		nr_zones = build_zonerefs_node(NODE_DATA(node), zonerefs);
+		//对其他的  node 的 pgdat 里面的 zone填到充zonerefs
+		nr_zones = build_zonerefs_node(NODE_DATA(node), zonerefs);//给pgdat填充zonerefs
 		zonerefs += nr_zones;
 	}
 
@@ -5783,7 +5789,7 @@ static void __build_all_zonelists(void *data)
 	int __maybe_unused cpu;
 	pg_data_t *self = data;
 
-	write_seqlock(&zonelist_update_seq);
+	write_seqlock(&zonelist_update_seq);//写信号量加锁
 
 #ifdef CONFIG_NUMA
 	memset(node_load, 0, sizeof(node_load));
@@ -5796,10 +5802,10 @@ static void __build_all_zonelists(void *data)
 	if (self && !node_online(self->node_id)) {
 		build_zonelists(self);
 	} else {
-		for_each_online_node(nid) {
+		for_each_online_node(nid) {//遍历每一个内存节点
 			pg_data_t *pgdat = NODE_DATA(nid);
 
-			build_zonelists(pgdat);
+			build_zonelists(pgdat);//构建区域列表
 		}
 
 #ifdef CONFIG_HAVE_MEMORYLESS_NODES
@@ -5816,7 +5822,7 @@ static void __build_all_zonelists(void *data)
 #endif
 	}
 
-	write_sequnlock(&zonelist_update_seq);
+	write_sequnlock(&zonelist_update_seq);//写信号量解锁
 }
 
 static noinline void __init
@@ -5824,7 +5830,7 @@ build_all_zonelists_init(void)
 {
 	int cpu;
 
-	__build_all_zonelists(NULL);
+	__build_all_zonelists(NULL);//填充备用区域zonerefs
 
 	/*
 	 * Initialize the boot_pagesets that are going to be used
@@ -5839,11 +5845,11 @@ build_all_zonelists_init(void)
 	 * needs the percpu allocator in order to allocate its pagesets
 	 * (a chicken-egg dilemma).
 	 */
-	for_each_possible_cpu(cpu)
+	for_each_possible_cpu(cpu)//遍历每一个cpu，初始化其pageset，也就是pcpu变量
 		setup_pageset(&per_cpu(boot_pageset, cpu), 0);
 
-	mminit_verify_zonelist();
-	cpuset_init_current_mems_allowed();
+	mminit_verify_zonelist();//输出备用列表信息，用于校验
+	cpuset_init_current_mems_allowed();//设置current包含的内存节点
 }
 
 /*
@@ -5856,13 +5862,14 @@ void __ref build_all_zonelists(pg_data_t *pgdat)
 {
 	unsigned long vm_total_pages;
 
-	if (system_state == SYSTEM_BOOTING) {
-		build_all_zonelists_init();
+	if (system_state == SYSTEM_BOOTING) {//在引导阶段调用
+		build_all_zonelists_init();//设置备用区域zonerefs和pageset，还设置current的mems_allowed
 	} else {
-		__build_all_zonelists(pgdat);
+		__build_all_zonelists(pgdat);//填充备用区域zonerefs
 		/* cpuset refresh routine should be here */
 	}
 	/* Get the number of free pages beyond high watermark in all zones. */
+	//计算高水位线以上的空闲页面数量
 	vm_total_pages = nr_free_zone_pages(gfp_zone(GFP_HIGHUSER_MOVABLE));
 	/*
 	 * Disable grouping by mobility if the number of pages in the
@@ -5871,11 +5878,13 @@ void __ref build_all_zonelists(pg_data_t *pgdat)
 	 * made on memory-hotadd so a system can start with mobility
 	 * disabled and enable it later
 	 */
+	//如果空闲页面数量太少，
 	if (vm_total_pages < (pageblock_nr_pages * MIGRATE_TYPES))
-		page_group_by_mobility_disabled = 1;
+		page_group_by_mobility_disabled = 1;//不开启移动分组
 	else
-		page_group_by_mobility_disabled = 0;
+		page_group_by_mobility_disabled = 0;//开启移动分组
 
+	//输出移动分组开启情况和信息
 	pr_info("Built %u zonelists, mobility grouping %s.  Total pages: %ld\n",
 		nr_online_nodes,
 		page_group_by_mobility_disabled ? "off" : "on",
@@ -6273,8 +6282,8 @@ static void pageset_init(struct per_cpu_pageset *p)
 
 static void setup_pageset(struct per_cpu_pageset *p, unsigned long batch)
 {
-	pageset_init(p);
-	pageset_set_batch(p, batch);
+	pageset_init(p);//初始化per_cpu_pages的lists列表
+	pageset_set_batch(p, batch);//设置per_cpu_pages的high和batch
 }
 
 /*
@@ -7648,7 +7657,7 @@ void __init page_alloc_init(void)
 	if (num_node_state(N_MEMORY) == 1)
 		hashdist = 0;
 #endif
-
+	//设置cpu的热插拔的回调函数page_alloc_cpu_dead
 	ret = cpuhp_setup_state_nocalls(CPUHP_PAGE_ALLOC_DEAD,
 					"mm/page_alloc:dead", NULL,
 					page_alloc_cpu_dead);

@@ -999,8 +999,9 @@ int __init early_brk64(unsigned long addr, unsigned int esr,
 
 void __init trap_init(void)
 {
-	register_kernel_break_hook(&bug_break_hook);
-	register_kernel_break_hook(&fault_break_hook);
+	//注册内核断点
+	register_kernel_break_hook(&bug_break_hook);//向kernel_break_hook链表注册bug_break_hook
+	register_kernel_break_hook(&fault_break_hook);//向kernel_break_hook链表注册fault_break_hook
 #ifdef CONFIG_KASAN_SW_TAGS
 	register_kernel_break_hook(&kasan_break_hook);
 #endif
