@@ -914,7 +914,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	ftrace_init();//ftrace子系统的初始化函数
 
 	/* trace_printk can be enabled here */
-	early_trace_init();
+	early_trace_init();//系统启动时function graph跟踪的初始化
 
 	/*
 	 * Set up the scheduler prior starting any interrupts (such as the

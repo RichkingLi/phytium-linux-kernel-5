@@ -955,6 +955,7 @@ __trace_buffer_lock_reserve(struct trace_buffer *buffer,
 	return event;
 }
 
+//echo 1 > tracing_on会进入该函数
 void tracer_tracing_on(struct trace_array *tr)
 {
 	if (tr->array_buffer.buffer)
@@ -1427,6 +1428,7 @@ int tracing_snapshot_cond_disable(struct trace_array *tr)
 EXPORT_SYMBOL_GPL(tracing_snapshot_cond_disable);
 #endif /* CONFIG_TRACER_SNAPSHOT */
 
+//echo 0 > tracing_on会进入该函数
 void tracer_tracing_off(struct trace_array *tr)
 {
 	if (tr->array_buffer.buffer)
@@ -2257,11 +2259,12 @@ static int allocate_cmdlines_buffer(unsigned int val,
 static int trace_create_savedcmd(void)
 {
 	int ret;
-
+	//申请savedcmd结构体内存
 	savedcmd = kmalloc(sizeof(*savedcmd), GFP_KERNEL);
 	if (!savedcmd)
 		return -ENOMEM;
 
+	//申请savedcmd结构体中saved_cmdlines成员的内存空间
 	ret = allocate_cmdlines_buffer(SAVED_CMDLINES_DEFAULT, savedcmd);
 	if (ret < 0) {
 		kfree(savedcmd);
@@ -3204,6 +3207,7 @@ void trace_printk_init_buffers(void)
 	if (buffers_allocated)
 		return;
 
+	//为每cpu的trace分配内存
 	if (alloc_percpu_trace_buffer())
 		return;
 
@@ -3225,7 +3229,7 @@ void trace_printk_init_buffers(void)
 	pr_warn("**********************************************************\n");
 
 	/* Expand the buffers to set size */
-	tracing_update_buffers();
+	tracing_update_buffers();//扩展缓冲区
 
 	buffers_allocated = 1;
 
@@ -8080,6 +8084,7 @@ static struct ftrace_func_command ftrace_snapshot_cmd = {
 
 static __init int register_snapshot_cmd(void)
 {
+	//注册ftrace命令snapshot
 	return register_ftrace_command(&ftrace_snapshot_cmd);
 }
 #else
@@ -8609,12 +8614,13 @@ allocate_trace_buffer(struct trace_array *tr, struct array_buffer *buf, int size
 static int allocate_trace_buffers(struct trace_array *tr, int size)
 {
 	int ret;
-
+	//申请array_buffer的内存
 	ret = allocate_trace_buffer(tr, &tr->array_buffer, size);
 	if (ret)
 		return ret;
 
 #ifdef CONFIG_TRACER_MAX_TRACE
+	//申请max_buffer的内存
 	ret = allocate_trace_buffer(tr, &tr->max_buffer,
 				    allocate_snapshot ? size : 1);
 	if (MEM_FAIL(ret, "Failed to allocate trace buffer\n")) {
@@ -9543,13 +9549,15 @@ __init static int tracer_alloc_buffers(void)
 	 */
 	BUILD_BUG_ON(TRACE_ITER_LAST_BIT > TRACE_FLAGS_MAX_SIZE);
 
+	//为tracing_buffer_mask位图分配了空间
 	if (!alloc_cpumask_var(&tracing_buffer_mask, GFP_KERNEL))
 		goto out;
-
+	//为tracing_cpumask位图分配了空间
 	if (!alloc_cpumask_var(&global_trace.tracing_cpumask, GFP_KERNEL))
 		goto out_free_buffer_mask;
 
 	/* Only allocate trace_printk buffers if a trace_printk exists */
+	//如果存在trace_printk，则分配trace_printk缓冲区
 	if (&__stop___trace_bprintk_fmt != &__start___trace_bprintk_fmt)
 		/* Must be called before global_trace.buffer is allocated */
 		trace_printk_init_buffers();
@@ -9560,10 +9568,11 @@ __init static int tracer_alloc_buffers(void)
 	else
 		ring_buf_size = 1;
 
+	//初始化下面两个位图tracing_buffer_mask和global_trace.tracing_cpumask
 	cpumask_copy(tracing_buffer_mask, cpu_possible_mask);
 	cpumask_copy(global_trace.tracing_cpumask, cpu_all_mask);
 
-	raw_spin_lock_init(&global_trace.start_lock);
+	raw_spin_lock_init(&global_trace.start_lock);//初始化自旋锁
 
 	/*
 	 * The prepare callbacks allocates some memory for the ring buffer. We
@@ -9571,6 +9580,7 @@ __init static int tracer_alloc_buffers(void)
 	 * the buffer, then the user would lose any trace that was in the
 	 * buffer. The memory will be removed once the "instance" is removed.
 	 */
+	//设置cpu热插拔的回调函数，看不懂
 	ret = cpuhp_setup_state_multi(CPUHP_TRACE_RB_PREPARE,
 				      "trace/RB:preapre", trace_rb_cpu_prepare,
 				      NULL);
@@ -9578,14 +9588,17 @@ __init static int tracer_alloc_buffers(void)
 		goto out_free_cpumask;
 	/* Used for event triggers */
 	ret = -ENOMEM;
+	//分配一个 ring_buffer 实例
 	temp_buffer = ring_buffer_alloc(PAGE_SIZE, RB_FL_OVERWRITE);
 	if (!temp_buffer)
 		goto out_rm_hp_state;
 
+	//申请savedcmd所需要的全部内存
 	if (trace_create_savedcmd() < 0)
 		goto out_free_temp_buffer;
 
 	/* TODO: make the number of buffers hot pluggable with CPUS */
+	//申请global_trace中成员的内存
 	if (allocate_trace_buffers(&global_trace, ring_buf_size) < 0) {
 		MEM_FAIL(1, "tracer: failed to allocate ring buffer!\n");
 		goto out_free_savedcmd;
@@ -9594,7 +9607,7 @@ __init static int tracer_alloc_buffers(void)
 	if (global_trace.buffer_disabled)
 		tracing_off();
 
-	if (trace_boot_clock) {
+	if (trace_boot_clock) {//如果启动参数设置了trace_clock
 		ret = tracing_set_clock(&global_trace, trace_boot_clock);
 		if (ret < 0)
 			pr_warn("Trace clock %s not defined, going back to default\n",
@@ -9606,27 +9619,31 @@ __init static int tracer_alloc_buffers(void)
 	 * needs to be set before we register anything. This is
 	 * just a bootstrap of current_trace anyway.
 	 */
-	global_trace.current_trace = &nop_trace;
+	global_trace.current_trace = &nop_trace;//设置当前的跟踪器为nop_trace
 
 	global_trace.max_lock = (arch_spinlock_t)__ARCH_SPIN_LOCK_UNLOCKED;
 
-	ftrace_init_global_array_ops(&global_trace);
+	ftrace_init_global_array_ops(&global_trace);//初始化global_trace
 
-	init_trace_flags_index(&global_trace);
+	init_trace_flags_index(&global_trace);//初始化trace_flags_index数组，看不懂为什么这样子
 
-	register_tracer(&nop_trace);
+	register_tracer(&nop_trace);//向ftrace系统注册nop_trace跟踪程序
 
 	/* Function tracing may start here (via kernel command line) */
-	init_function_trace();
+	init_function_trace();//初始化function_trace
 
 	/* All seems OK, enable tracing */
-	tracing_disabled = 0;
+	tracing_disabled = 0;//默认trace开启，但是开启的是nop_trace
 
+	//把trace_panic_notifier添加通知到原子通知链panic_notifier_list
+	//当panic的时候回调trace_panic_notifier中的trace_panic_handler
 	atomic_notifier_chain_register(&panic_notifier_list,
 				       &trace_panic_notifier);
 
+	//注册处理器故障的通知回调函数trace_die_notifier
 	register_die_notifier(&trace_die_notifier);
 
+	//初始化global_trace的成员
 	global_trace.flags = TRACE_ARRAY_FL_GLOBAL;
 
 	INIT_LIST_HEAD(&global_trace.systems);
@@ -9635,9 +9652,9 @@ __init static int tracer_alloc_buffers(void)
 	INIT_LIST_HEAD(&global_trace.err_log);
 	list_add(&global_trace.list, &ftrace_trace_arrays);
 
-	apply_trace_boot_options();
+	apply_trace_boot_options();//解析启动参数trace_options，设置trace
 
-	register_snapshot_cmd();
+	register_snapshot_cmd();////注册ftrace命令snapshot
 
 	return 0;
 
@@ -9664,9 +9681,10 @@ void __init early_trace_init(void)
 			     "Failed to allocate trace iterator\n"))
 			tracepoint_printk = 0;
 		else
+			//开启tracepoint_printk_key.key
 			static_key_enable(&tracepoint_printk_key.key);
 	}
-	tracer_alloc_buffers();
+	tracer_alloc_buffers();//分配ftrace需要的RingBuffer，初始化各种tracer和cmd
 }
 
 void __init trace_init(void)

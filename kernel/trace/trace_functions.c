@@ -773,6 +773,7 @@ static int __init init_func_cmd_traceon(void)
 {
 	int ret;
 
+	//注册ftrace命令：traceoff、traceon、stacktrace、dump、cpudump
 	ret = register_ftrace_command(&ftrace_traceoff_cmd);
 	if (ret)
 		return ret;
@@ -815,6 +816,7 @@ static inline int init_func_cmd_traceon(void)
 
 __init int init_function_trace(void)
 {
+	//把一些cmd注册到ftrace子系统：traceoff、traceon、stacktrace、dump、cpudump
 	init_func_cmd_traceon();
-	return register_tracer(&function_trace);
+	return register_tracer(&function_trace);//向ftrace系统注册function_trace跟踪程序
 }
