@@ -911,7 +911,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	trap_init();//初始化断点，向kernel_break_hook加入各种钩子
 	mm_init();//设置内核内存分配器
 
-	ftrace_init();
+	ftrace_init();//ftrace子系统的初始化函数
 
 	/* trace_printk can be enabled here */
 	early_trace_init();

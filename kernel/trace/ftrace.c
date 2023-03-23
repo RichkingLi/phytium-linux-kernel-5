@@ -3107,6 +3107,7 @@ ops_references_rec(struct ftrace_ops *ops, struct dyn_ftrace *rec)
 	return true;
 }
 
+//用于更新函数跟踪代码，以支持运行时跟踪
 static int ftrace_update_code(struct module *mod, struct ftrace_page *new_pgs)
 {
 	struct ftrace_page *pg;
@@ -3116,6 +3117,7 @@ static int ftrace_update_code(struct module *mod, struct ftrace_page *new_pgs)
 	unsigned long rec_flags = 0;
 	int i;
 
+	//获取当前时间的纳秒级精度时间戳
 	start = ftrace_now(raw_smp_processor_id());
 
 	/*
@@ -3132,14 +3134,15 @@ static int ftrace_update_code(struct module *mod, struct ftrace_page *new_pgs)
 	if (mod)
 		rec_flags |= FTRACE_FL_DISABLED;
 
-	for (pg = new_pgs; pg; pg = pg->next) {
+	for (pg = new_pgs; pg; pg = pg->next) {//遍历每一个ftrace_page
 
-		for (i = 0; i < pg->index; i++) {
+		for (i = 0; i < pg->index; i++) {//遍历每一个ftrace_page的index
 
 			/* If something went wrong, bail without enabling anything */
 			if (unlikely(ftrace_disabled))
 				return -1;
 
+			//设置ftrace_page的records[index]的flags
 			p = &pg->records[i];
 			p->flags = rec_flags;
 
@@ -3215,7 +3218,7 @@ ftrace_allocate_pages(unsigned long num_to_init)
 	if (!num_to_init)
 		return NULL;
 
-	start_pg = pg = kzalloc(sizeof(*pg), GFP_KERNEL);
+	start_pg = pg = kzalloc(sizeof(*pg), GFP_KERNEL);//申请ftrace_page结构体内存
 	if (!pg)
 		return NULL;
 
@@ -3225,6 +3228,7 @@ ftrace_allocate_pages(unsigned long num_to_init)
 	 * waste as little space as possible.
 	 */
 	for (;;) {
+		//从伙伴系统中申请内存，用于记录的ftrace的缓冲区
 		cnt = ftrace_allocate_records(pg, num_to_init);
 		if (cnt < 0)
 			goto free_pages;
@@ -5588,8 +5592,9 @@ static void __init set_ftrace_early_graph(char *buf, int enable)
 		return;
 
 	while (buf) {
-		func = strsep(&buf, ",");
+		func = strsep(&buf, ",");//通过逗号分离出每一个fu
 		/* we allow only one expression at a time */
+		//设置function graph跟踪功能的哈希表
 		ret = ftrace_graph_set_hash(hash, func);
 		if (ret)
 			printk(KERN_DEBUG "ftrace: function %s not "
@@ -5608,18 +5613,21 @@ ftrace_set_early_filter(struct ftrace_ops *ops, char *buf, int enable)
 {
 	char *func;
 
-	ftrace_ops_init(ops);
+	ftrace_ops_init(ops);//初始化ops
 
 	while (buf) {
-		func = strsep(&buf, ",");
+		func = strsep(&buf, ",");//通过逗号分离出每一个func
+		//通过正则表达式找到追踪的函数
 		ftrace_set_regex(ops, func, strlen(func), 0, enable);
 	}
 }
 
 static void __init set_ftrace_early_filters(void)
 {
+	//根据ftrace_filter_buf初始化global_ops
 	if (ftrace_filter_buf[0])
 		ftrace_set_early_filter(&global_ops, ftrace_filter_buf, 1);
+	//根据ftrace_notrace_buf初始化global_ops
 	if (ftrace_notrace_buf[0])
 		ftrace_set_early_filter(&global_ops, ftrace_notrace_buf, 0);
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
@@ -6210,21 +6218,22 @@ static int ftrace_process_locs(struct module *mod,
 	if (!count)
 		return 0;
 
+	//给start中位置信息表排序
 	sort(start, count, sizeof(*start),
 	     ftrace_cmp_ips, NULL);
 
-	start_pg = ftrace_allocate_pages(count);
+	start_pg = ftrace_allocate_pages(count);//ftrace申请内存
 	if (!start_pg)
 		return -ENOMEM;
 
-	mutex_lock(&ftrace_lock);
+	mutex_lock(&ftrace_lock);//上锁
 
 	/*
 	 * Core and each module needs their own pages, as
 	 * modules will free them when they are removed.
 	 * Force a new page to be allocated for modules.
 	 */
-	if (!mod) {
+	if (!mod) {//初始化ftrace_pages和ftrace_pages_start
 		WARN_ON(ftrace_pages || ftrace_pages_start);
 		/* First initialization */
 		ftrace_pages = ftrace_pages_start = start_pg;
@@ -6243,8 +6252,8 @@ static int ftrace_process_locs(struct module *mod,
 
 	p = start;
 	pg = start_pg;
-	while (p < end) {
-		addr = ftrace_call_adjust(*p++);
+	while (p < end) {//遍历跟踪信息的位置链表，对于每个位置信息
+		addr = ftrace_call_adjust(*p++);//返回ftrace调用地址，也就是往后挪4字节
 		/*
 		 * Some architecture linkers will pad between
 		 * the different mcount_loc sections of different
@@ -6260,7 +6269,7 @@ static int ftrace_process_locs(struct module *mod,
 				break;
 			pg = pg->next;
 		}
-
+		//把调整后的addr放到records的ip中，ip就是存放调用的地址
 		rec = &pg->records[pg->index++];
 		rec->ip = addr;
 	}
@@ -6281,12 +6290,12 @@ static int ftrace_process_locs(struct module *mod,
 	 */
 	if (!mod)
 		local_irq_save(flags);
-	ftrace_update_code(mod, start_pg);
+	ftrace_update_code(mod, start_pg);//更新函数跟踪代码的flage
 	if (!mod)
 		local_irq_restore(flags);
 	ret = 0;
  out:
-	mutex_unlock(&ftrace_lock);
+	mutex_unlock(&ftrace_lock);//解锁
 
 	return ret;
 }
@@ -6869,13 +6878,13 @@ void __init ftrace_free_init_mem(void)
 
 void __init ftrace_init(void)
 {
-	extern unsigned long __start_mcount_loc[];
-	extern unsigned long __stop_mcount_loc[];
+	extern unsigned long __start_mcount_loc[];//位置信息表开始位置
+	extern unsigned long __stop_mcount_loc[]; //位置信息表结束位置
 	unsigned long count, flags;
 	int ret;
 
 	local_irq_save(flags);
-	ret = ftrace_dyn_arch_init();
+	ret = ftrace_dyn_arch_init();//空函数
 	local_irq_restore(flags);
 	if (ret)
 		goto failed;
@@ -6891,6 +6900,7 @@ void __init ftrace_init(void)
 
 	last_ftrace_enabled = ftrace_enabled = 1;
 
+	//负责解析和处理ftrace跟踪信息的位置
 	ret = ftrace_process_locs(NULL,
 				  __start_mcount_loc,
 				  __stop_mcount_loc);
@@ -6898,7 +6908,7 @@ void __init ftrace_init(void)
 	pr_info("ftrace: allocated %ld pages with %ld groups\n",
 		ftrace_number_of_pages, ftrace_number_of_groups);
 
-	set_ftrace_early_filters();
+	set_ftrace_early_filters();//早期初始化阶段设置函数追踪的过滤器
 
 	return;
  failed:
