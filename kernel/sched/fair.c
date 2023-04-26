@@ -10744,6 +10744,7 @@ static void rq_offline_fair(struct rq *rq)
  * and everything must be accessed through the @rq and @curr passed in
  * parameters.
  */
+//公平调度类的周期调度进入这个函数
 static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 {
 	struct cfs_rq *cfs_rq;

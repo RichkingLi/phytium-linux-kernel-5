@@ -113,12 +113,12 @@ static inline void cpu_uninstall_idmap(void)
 {
 	struct mm_struct *mm = current->active_mm;
 
-	cpu_set_reserved_ttbr0();//设置TTBR0
+	cpu_set_reserved_ttbr0();//设置TTBR0_EL1为reserved_pg_dir的物理地址
 	local_flush_tlb_all();//冲刷TLB
-	cpu_set_default_tcr_t0sz();//设置TCR
+	cpu_set_default_tcr_t0sz();//根据虚拟地址位数设置TCR.t0sz
 
 	if (mm != &init_mm && !system_uses_ttbr0_pan())
-		cpu_switch_mm(mm->pgd, mm);
+		cpu_switch_mm(mm->pgd, mm);//切换current->active_mm的内存映射
 }
 
 static inline void cpu_install_idmap(void)

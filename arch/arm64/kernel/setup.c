@@ -84,9 +84,9 @@ u64 __cacheline_aligned boot_args[4];
 
 void __init smp_setup_processor_id(void)
 {
-	//读取MPIDR_EL1寄存器，并且只保留4个等级的亲和性
+	//读取MPIDR_EL1寄存器，并且只保留4个等级表示该core属于哪个cluse等信息
 	u64 mpidr = read_cpuid_mpidr() & MPIDR_HWID_BITMASK;
-	set_cpu_logical_map(0, mpidr);//cpu的亲和性写入__cpu_logical_map
+	set_cpu_logical_map(0, mpidr);//把core信息写入__cpu_logical_map
 
 	/*
 	 * clear __my_cpu_offset on boot CPU to avoid hang caused by
@@ -94,7 +94,7 @@ void __init smp_setup_processor_id(void)
 	 * access percpu variable inside lock_release
 	 */
 	//tpidr_el1存放当前cpu的per_cpu变量的offset值
-	set_my_cpu_offset(0);//设置到对应cpu的tpidr_el1和tpidr_el2寄存器
+	set_my_cpu_offset(0);//初始化0到对应cpu的tpidr_el1和tpidr_el2寄存器
 	pr_info("Booting Linux on physical CPU 0x%010lx [0x%08x]\n",
 		(unsigned long)mpidr, read_cpuid_id());
 }

@@ -867,7 +867,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 * enable them.
 	 */
 	boot_cpu_init();//记录cpu的cpumask的变量，并且数量加一
-	page_address_init();//初始化高端内存，看不懂
+	page_address_init();//初始化page_address_htable数组，高端内存用于映射，
 	pr_notice("%s", linux_banner);//输出linux版本、编译（机器、时间）等信息
 	early_security_init();//安全相关初始化
 	setup_arch(&command_line);//处理cpu体系相关架构

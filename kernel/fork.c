@@ -844,8 +844,11 @@ void set_task_stack_end_magic(struct task_struct *tsk)
 {
 	unsigned long *stackend;
 
-	stackend = end_of_stack(tsk);
-	*stackend = STACK_END_MAGIC;	/* for overflow detection */
+	stackend = end_of_stack(tsk);//获取内核栈末尾地址
+	*stackend = STACK_END_MAGIC;//设置为魔数，
+	//在每次栈空间被使用时，内核都会检查该位置的值是否保持不变
+	//如果发现变化，就会发出栈溢出的警报。
+
 }
 
 static struct task_struct *dup_task_struct(struct task_struct *orig, int node)

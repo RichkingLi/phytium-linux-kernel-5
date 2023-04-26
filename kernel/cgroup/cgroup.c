@@ -1915,6 +1915,7 @@ static void init_cgroup_housekeeping(struct cgroup *cgrp)
 	INIT_LIST_HEAD(&cgrp->cset_links);//初始化指向cgrp_cset_links的列表
 	INIT_LIST_HEAD(&cgrp->pidlists);//初始化存放进程pid的链表
 	mutex_init(&cgrp->pidlist_mutex);//初始化保护pidlists的互斥锁
+	//初始化cgrp的其他成员参数
 	cgrp->self.cgroup = cgrp;
 	cgrp->self.flags |= CSS_ONLINE;
 	cgrp->dom_cgrp = cgrp;
@@ -1941,6 +1942,7 @@ void init_cgroup_root(struct cgroup_fs_context *ctx)
 	cgrp->root = root;
 	init_cgroup_housekeeping(cgrp);//初始化根cgroup的后勤工作
 
+	//初始化root的flags、release_agent_path、name、cgrp。
 	root->flags = ctx->flags;
 	if (ctx->release_agent)
 		strscpy(root->release_agent_path, ctx->release_agent, PATH_MAX);
@@ -5762,12 +5764,15 @@ int __init cgroup_init_early(void)
 	int i;
 
 	ctx.root = &cgrp_dfl_root;
-	init_cgroup_root(&ctx);//初始化cgroup文件系统超级块创建/挂载上下文。
+	init_cgroup_root(&ctx);//注册和初始化根控制组
 	cgrp_dfl_root.cgrp.self.flags |= CSS_NO_REF;
 
+	//初始化init_task.cgroups，这个RCU类型的指针，看看他的定义就懂了
+	//struct css_set __rcu		*cgroups;
 	RCU_INIT_POINTER(init_task.cgroups, &init_css_set);
 
-	for_each_subsys(ss, i) {
+	//组装好基本的控制组框架
+	for_each_subsys(ss, i) {//遍历所有启用的cgroup子系统，他们存放在cgroup_subsys数组中
 		WARN(!ss->css_alloc || !ss->css_free || ss->name || ss->id,
 		     "invalid cgroup_subsys %d:%s css_alloc=%p css_free=%p id:name=%d:%s\n",
 		     i, cgroup_subsys_name[i], ss->css_alloc, ss->css_free,
@@ -5775,13 +5780,13 @@ int __init cgroup_init_early(void)
 		WARN(strlen(cgroup_subsys_name[i]) > MAX_CGROUP_TYPE_NAMELEN,
 		     "cgroup_subsys_name %s too long\n", cgroup_subsys_name[i]);
 
-		ss->id = i;
-		ss->name = cgroup_subsys_name[i];
+		ss->id = i;//设置ID
+		ss->name = cgroup_subsys_name[i];//设置cgroup名字
 		if (!ss->legacy_name)
-			ss->legacy_name = cgroup_subsys_name[i];
+			ss->legacy_name = cgroup_subsys_name[i];//设置legacy_name
 
 		if (ss->early_init)
-			cgroup_init_subsys(ss, true);
+			cgroup_init_subsys(ss, true);//cgroup的某一个子系统
 	}
 	return 0;
 }

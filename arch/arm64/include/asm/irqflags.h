@@ -85,9 +85,9 @@ static inline int arch_irqs_disabled_flags(unsigned long flags)
 	int res;
 
 	asm volatile(ALTERNATIVE(
-		"and	%w0, %w1, #" __stringify(PSR_I_BIT),
-		"eor	%w0, %w1, #" __stringify(GIC_PRIO_IRQON),
-		ARM64_HAS_IRQ_PRIO_MASKING)
+		"and	%w0, %w1, #" __stringify(PSR_I_BIT),//0x80
+		"eor	%w0, %w1, #" __stringify(GIC_PRIO_IRQON),//0x60
+		ARM64_HAS_IRQ_PRIO_MASKING)//42
 		: "=&r" (res)
 		: "r" ((int) flags)
 		: "memory");

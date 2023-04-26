@@ -608,27 +608,28 @@ struct fsnotify_mark_connector;
  * of the 'struct inode'
  */
 struct inode {
-	umode_t			i_mode;
-	unsigned short		i_opflags;
-	kuid_t			i_uid;
-	kgid_t			i_gid;
-	unsigned int		i_flags;
+	umode_t			i_mode;//文件的访问权限
+	unsigned short		i_opflags;//文件操作的状态
+	kuid_t			i_uid;//使用者id
+	kgid_t			i_gid;//使用组id
+	unsigned int		i_flags;//文件系统标志
 
 #ifdef CONFIG_FS_POSIX_ACL
+	//acl访问控制相关属性
 	struct posix_acl	*i_acl;
 	struct posix_acl	*i_default_acl;
 #endif
 
-	const struct inode_operations	*i_op;
-	struct super_block	*i_sb;
-	struct address_space	*i_mapping;
+	const struct inode_operations	*i_op;//索引节点操作方法函数
+	struct super_block	*i_sb;//索引节点所属超级块
+	struct address_space	*i_mapping;//相关地址映射（文件内容映射）
 
 #ifdef CONFIG_SECURITY
-	void			*i_security;
+	void			*i_security;//安全模块使用
 #endif
 
 	/* Stat data, not accessed from path walking */
-	unsigned long		i_ino;
+	unsigned long		i_ino;//索引节点号
 	/*
 	 * Filesystems may only read i_nlink directly.  They shall use the
 	 * following functions for modification:
@@ -637,32 +638,32 @@ struct inode {
 	 *    inode_(inc|dec)_link_count
 	 */
 	union {
-		const unsigned int i_nlink;
+		const unsigned int i_nlink;//硬链接计数
 		unsigned int __i_nlink;
 	};
-	dev_t			i_rdev;
-	loff_t			i_size;
-	struct timespec64	i_atime;
-	struct timespec64	i_mtime;
-	struct timespec64	i_ctime;
-	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
-	unsigned short          i_bytes;
-	u8			i_blkbits;
-	u8			i_write_hint;
-	blkcnt_t		i_blocks;
+	dev_t			i_rdev;//实际设备标识符
+	loff_t			i_size;//文件长度
+	struct timespec64	i_atime;//最后访问时间
+	struct timespec64	i_mtime;//最后修改时间
+	struct timespec64	i_ctime;//最后改变时间
+	spinlock_t		i_lock;//自旋锁
+	unsigned short          i_bytes;//使用的字节数
+	u8			i_blkbits;//以位为单位的块大小
+	u8			i_write_hint;//
+	blkcnt_t		i_blocks;//文件的块数
 
 #ifdef __NEED_I_SIZE_ORDERED
-	seqcount_t		i_size_seqcount;
+	seqcount_t		i_size_seqcount;//对i_size进行串行计数
 #endif
 
 	/* Misc */
-	unsigned long		i_state;
-	struct rw_semaphore	i_rwsem;
+	unsigned long		i_state;//索引状态标志
+	struct rw_semaphore	i_rwsem;//读写信号量
 
 	unsigned long		dirtied_when;	/* jiffies of first dirtying */
-	unsigned long		dirtied_time_when;
+	unsigned long		dirtied_time_when;//第一次弄脏数据时间
 
-	struct hlist_node	i_hash;
+	struct hlist_node	i_hash;//散列表，用于快速查找
 	struct list_head	i_io_list;	/* backing dev IO list */
 #ifdef CONFIG_CGROUP_WRITEBACK
 	struct bdi_writeback	*i_wb;		/* the associated cgroup wb */
@@ -672,45 +673,44 @@ struct inode {
 	u16			i_wb_frn_avg_time;
 	u16			i_wb_frn_history;
 #endif
-	struct list_head	i_lru;		/* inode LRU list */
+	struct list_head	i_lru;//最近最少使用链表
 	struct list_head	i_sb_list;
-	struct list_head	i_wb_list;	/* backing dev writeback list */
+	struct list_head	i_wb_list;//等待回写索引链表
 	union {
-		struct hlist_head	i_dentry;
-		struct rcu_head		i_rcu;
+		struct hlist_head	i_dentry;//目录项链表
+		struct rcu_head		i_rcu;//读拷贝链表
 	};
-	atomic64_t		i_version;
-	atomic64_t		i_sequence; /* see futex */
-	atomic_t		i_count;
-	atomic_t		i_dio_count;
-	atomic_t		i_writecount;
-#if defined(CONFIG_IMA) || defined(CONFIG_FILE_LOCKING)
-	atomic_t		i_readcount; /* struct files open RO */
+	atomic64_t		i_version;//版本号
+	atomic_t		i_count;//引用计数
+	atomic_t		i_dio_count;//直接io操作计数
+	atomic_t		i_writecount;//写者计数
+#ifdef CONFIG_IMA
+	atomic_t		i_readcount;//读者计数
 #endif
 	union {
-		const struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
+		const struct file_operations	*i_fop;//索引操作方法函数
 		void (*free_inode)(struct inode *);
 	};
 	struct file_lock_context	*i_flctx;
-	struct address_space	i_data;
-	struct list_head	i_devices;
+	struct address_space	i_data;//设备地址映射
+	struct list_head	i_devices;//块设备链表
 	union {
-		struct pipe_inode_info	*i_pipe;
-		struct block_device	*i_bdev;
-		struct cdev		*i_cdev;
-		char			*i_link;
-		unsigned		i_dir_seq;
+		struct pipe_inode_info	*i_pipe;//管道信息
+		struct block_device	*i_bdev;//块设备驱动
+		struct cdev		*i_cdev;//字符设备驱动
+		char			*i_link;//硬链接
+		unsigned		i_dir_seq;//目录信号量
 	};
 
 	__u32			i_generation;
 
 #ifdef CONFIG_FSNOTIFY
 	__u32			i_fsnotify_mask; /* all events this inode cares about */
-	struct fsnotify_mark_connector __rcu	*i_fsnotify_marks;
+	struct fsnotify_mark_connector __rcu	*i_fsnotify_marks;//文件系统通知掩码
 #endif
 
 #ifdef CONFIG_FS_ENCRYPTION
-	struct fscrypt_info	*i_crypt_info;
+	struct fscrypt_info	*i_crypt_info;//加密信息
 #endif
 
 #ifdef CONFIG_FS_VERITY

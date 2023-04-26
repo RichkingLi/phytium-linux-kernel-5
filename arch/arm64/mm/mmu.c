@@ -776,7 +776,7 @@ void __init paging_init(void)
 	memblock_free(__pa_symbol(init_pg_dir),
 		      __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
 
-	memblock_allow_resize();
+	memblock_allow_resize();//设置memblock_can_resize为1
 }
 
 /*
@@ -1250,9 +1250,10 @@ void __init early_fixmap_init(void)
 	pmd_t *pmdp;
 	unsigned long addr = FIXADDR_START;
 
-	pgdp = pgd_offset_k(addr);//找到pgd页表项
-	p4dp = p4d_offset(pgdp, addr);
-	p4d = READ_ONCE(*p4dp);
+	pgdp = pgd_offset_k(addr);//找到固定映射起始地址的pgd页表项（偏移后的）
+	p4dp = p4d_offset(pgdp, addr);//计算出pgd页表项中存放的物理地址
+	p4d = READ_ONCE(*p4dp);//读取页表项中的物理地址存放的值，也就是p4d表起始地址
+	//如果使用超过3级页表，并且p4d不是空的
 	if (CONFIG_PGTABLE_LEVELS > 3 &&
 	    !(p4d_none(p4d) || p4d_page_paddr(p4d) == __pa_symbol(bm_pud))) {
 		/*
@@ -1261,17 +1262,17 @@ void __init early_fixmap_init(void)
 		 * 16k/4 levels configurations.
 		 */
 		BUG_ON(!IS_ENABLED(CONFIG_ARM64_16K_PAGES));
-		pudp = pud_offset_kimg(p4dp, addr);
+		pudp = pud_offset_kimg(p4dp, addr);//计算出固定映射起始地址的pud页表项
 	} else {
-		if (p4d_none(p4d))
+		if (p4d_none(p4d))//如果p4d是空的
 			//将bm_pud的物理地址写到pgd全局页目录表中
 			__p4d_populate(p4dp, __pa_symbol(bm_pud), PUD_TYPE_TABLE);
-		pudp = fixmap_pud(addr);
+		pudp = fixmap_pud(addr);//计算出pud的目录项的物理地址
 	}
-	if (pud_none(READ_ONCE(*pudp)))
+	if (pud_none(READ_ONCE(*pudp)))//如果pudp是空的
 		//将bm_pmd的物理地址写到pud页目录表中
 		__pud_populate(pudp, __pa_symbol(bm_pmd), PMD_TYPE_TABLE);
-	pmdp = fixmap_pmd(addr);
+	pmdp = fixmap_pmd(addr);//计算出pmd的目录项的物理地址
 	//将bm_pte的物理地址写到pmd页表目录表中
 	__pmd_populate(pmdp, __pa_symbol(bm_pte), PMD_TYPE_TABLE);
 
