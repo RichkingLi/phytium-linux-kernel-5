@@ -390,6 +390,7 @@ int of_irq_get(struct device_node *dev, int index)
 	struct of_phandle_args oirq;
 	struct irq_domain *domain;
 
+	//解析设备树中的中断信息, 保存在of_phandle_args结构体中
 	rc = of_irq_parse_one(dev, index, &oirq);
 	if (rc)
 		return rc;
@@ -398,7 +399,7 @@ int of_irq_get(struct device_node *dev, int index)
 	if (!domain)
 		return -EPROBE_DEFER;
 
-	return irq_create_of_mapping(&oirq);
+	return irq_create_of_mapping(&oirq);//创建中断映射
 }
 EXPORT_SYMBOL_GPL(of_irq_get);
 

@@ -112,6 +112,7 @@ struct platform_device *of_device_alloc(struct device_node *np,
 	int rc, i, num_reg = 0, num_irq;
 	struct resource *res, temp_res;
 
+	//分配平台设备
 	dev = platform_device_alloc("", PLATFORM_DEVID_NONE);
 	if (!dev)
 		return NULL;
@@ -119,7 +120,7 @@ struct platform_device *of_device_alloc(struct device_node *np,
 	/* count the io and irq resources */
 	while (of_address_to_resource(np, num_reg, &temp_res) == 0)
 		num_reg++;
-	num_irq = of_irq_count(np);
+	num_irq = of_irq_count(np);//统计节点使用irq的次数
 
 	/* Populate the resource table */
 	if (num_irq || num_reg) {
@@ -131,18 +132,21 @@ struct platform_device *of_device_alloc(struct device_node *np,
 
 		dev->num_resources = num_reg + num_irq;
 		dev->resource = res;
+		//遍历reg资源
 		for (i = 0; i < num_reg; i++, res++) {
+			//把设备树地址转换为资源
 			rc = of_address_to_resource(np, i, res);
 			WARN_ON(rc);
 		}
+		//根据设备节点中的中断信息, 构造中断资源
 		if (of_irq_to_resource_table(np, res, num_irq) != num_irq)
 			pr_debug("not all legacy IRQ resources mapped for %pOFn\n",
 				 np);
 	}
 
-	dev->dev.of_node = of_node_get(np);
+	dev->dev.of_node = of_node_get(np);//把node节点保存到deb中
 	dev->dev.fwnode = &np->fwnode;
-	dev->dev.parent = parent ? : &platform_bus;
+	dev->dev.parent = parent ? : &platform_bus;//保存父节点
 
 	if (bus_id)
 		dev_set_name(&dev->dev, "%s", bus_id);

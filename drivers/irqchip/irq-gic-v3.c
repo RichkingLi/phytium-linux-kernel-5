@@ -253,15 +253,15 @@ static void gic_enable_redist(bool enable)
 	if (gic_data.flags & FLAGS_WORKAROUND_GICR_WAKER_MSM8996)
 		return;
 
-	rbase = gic_data_rdist_rd_base();
+	rbase = gic_data_rdist_rd_base();//获取Distributor的基地址空间
 
-	val = readl_relaxed(rbase + GICR_WAKER);
+	val = readl_relaxed(rbase + GICR_WAKER);//读取Redistributor的唤醒寄存器
 	if (enable)
 		/* Wake up this CPU redistributor */
-		val &= ~GICR_WAKER_ProcessorSleep;
+		val &= ~GICR_WAKER_ProcessorSleep;//表示cpu可以被redist唤醒
 	else
-		val |= GICR_WAKER_ProcessorSleep;
-	writel_relaxed(val, rbase + GICR_WAKER);
+		val |= GICR_WAKER_ProcessorSleep;//表示cpu不可以被redist唤醒
+	writel_relaxed(val, rbase + GICR_WAKER);//写回Redistributor的唤醒寄存器
 
 	if (!enable) {		/* Check that GICR_WAKER is writeable */
 		val = readl_relaxed(rbase + GICR_WAKER);
@@ -269,14 +269,14 @@ static void gic_enable_redist(bool enable)
 			return;	/* No PM support in this redistributor */
 	}
 
-	while (--count) {
+	while (--count) {//等待写入成功
 		val = readl_relaxed(rbase + GICR_WAKER);
 		if (enable ^ (bool)(val & GICR_WAKER_ChildrenAsleep))
 			break;
 		cpu_relax();
 		udelay(1);
 	}
-	if (!count)
+	if (!count)//如果还是没写成功
 		pr_err_ratelimited("redistributor failed to %s...\n",
 				   enable ? "wakeup" : "sleep");
 }
@@ -776,7 +776,7 @@ static void __init gic_dist_init(void)
 
 	/* Disable the distributor */
 	writel_relaxed(0, base + GICD_CTLR);
-	gic_dist_wait_for_rwp();
+	gic_dist_wait_for_rwp();//等待distributor关闭完成
 
 	/*
 	 * Configure SPIs as non-secure Group-1. This will only matter
@@ -1112,10 +1112,10 @@ static void gic_cpu_init(void)
 	int i;
 
 	/* Register ourselves with the rest of the world */
-	if (gic_populate_rdist())
+	if (gic_populate_rdist())//判断cpu是否存在distributor
 		return;
 
-	gic_enable_redist(true);
+	gic_enable_redist(true);//使能cpu被redist唤醒
 
 	WARN((gic_data.ppi_nr > 16 || GIC_ESPI_NR != 0) &&
 	     !(gic_read_ctlr() & ICC_CTLR_EL1_ExtRange),
@@ -1125,10 +1125,11 @@ static void gic_cpu_init(void)
 	rbase = gic_data_rdist_sgi_base();
 
 	/* Configure SGIs/PPIs as non-secure Group-1 */
+	//设置ppi路由寄存器的初始值
 	for (i = 0; i < gic_data.ppi_nr + 16; i += 32)
 		writel_relaxed(~0, rbase + GICR_IGROUPR0 + i / 8);
 
-	gic_cpu_config(rbase, gic_data.ppi_nr + 16, gic_redist_wait_for_rwp);
+	gic_cpu_config(rbase, gic_data.ppi_nr + 16, gic_redist_wait_for_rwp);//设定SGI和PPI的初始值
 
 	/* initialise system registers */
 	gic_cpu_sys_reg_init();
@@ -1541,9 +1542,12 @@ static int gic_irq_domain_select(struct irq_domain *d,
 }
 
 static const struct irq_domain_ops gic_irq_domain_ops = {
-	.translate = gic_irq_domain_translate,
-	.alloc = gic_irq_domain_alloc,
-	.free = gic_irq_domain_free,
+	//解析设备树回调函数，主要获取硬件中断号和flags
+	.translate = gic_irq_domain_translate,	
+	//申请中断回调函数，主要设置硬件中断号和虚拟中断号的绑定，设置irq_des
+	.alloc = gic_irq_domain_alloc,	
+	//释放中断回调函数
+	.free = gic_irq_domain_free,			
 	.select = gic_irq_domain_select,
 };
 
@@ -1729,6 +1733,7 @@ static int __init gic_init_bases(void __iomem *dist_base,
 	if (static_branch_likely(&supports_deactivate_key))
 		pr_info("GIC: Using split EOI/Deactivate mode\n");
 
+	//设置全局变量gic_data
 	gic_data.fwnode = handle;
 	gic_data.dist_base = dist_base;
 	gic_data.redist_regions = rdist_regs;
@@ -1754,6 +1759,7 @@ static int __init gic_init_bases(void __iomem *dist_base,
 	if (!(gic_data.flags & FLAGS_WORKAROUND_CAVIUM_ERRATUM_38539))
 		gic_data.rdists.gicd_typer2 = readl_relaxed(gic_data.dist_base + GICD_TYPER2);
 
+	//创建并且初始化domain，最重要的是gic_irq_domain_ops方法
 	gic_data.domain = irq_domain_create_tree(handle, &gic_irq_domain_ops,
 						 &gic_data);
 	gic_data.rdists.rdist = alloc_percpu(typeof(*gic_data.rdists.rdist));
@@ -1779,14 +1785,15 @@ static int __init gic_init_bases(void __iomem *dist_base,
 			pr_err("Failed to initialize MBIs\n");
 	}
 
+	//设置handle_arch_irq为gic_handle_irq，cpu触发irq就会跑到gic_handle_irq
 	set_handle_irq(gic_handle_irq);
 
 	gic_update_rdist_properties();
 
-	gic_dist_init();
-	gic_cpu_init();
-	gic_smp_init();
-	gic_cpu_pm_init();
+	gic_dist_init();//初始化GICD分发器，配置控制器的中断路由
+	gic_cpu_init();//初始化GICR，配置PPI，
+	gic_smp_init();//初始化SGI中断
+	gic_cpu_pm_init();//初始化CPU的GIC控制器用于中断的电源管理特性
 
 	if (gic_dist_supports_lpis()) {
 		its_init(handle, &gic_data.rdists, gic_data.domain);
@@ -1796,7 +1803,7 @@ static int __init gic_init_bases(void __iomem *dist_base,
 			gicv2m_init(handle, gic_data.domain);
 	}
 
-	gic_enable_nmi_support();
+	gic_enable_nmi_support();//初始化NMI中断
 
 	return 0;
 
@@ -1949,13 +1956,13 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 	u32 nr_redist_regions;
 	int err, i;
 
-	dist_base = of_iomap(node, 0);
+	dist_base = of_iomap(node, 0);//获取GICD的地址，并且进行了映射
 	if (!dist_base) {
 		pr_err("%pOF: unable to map gic dist registers\n", node);
 		return -ENXIO;
 	}
 
-	err = gic_validate_dist_version(dist_base);
+	err = gic_validate_dist_version(dist_base);//验证gic版本
 	if (err) {
 		pr_err("%pOF: no distributor detected, giving up\n", node);
 		goto out_unmap_dist;
@@ -1971,6 +1978,7 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 		goto out_unmap_dist;
 	}
 
+	//redistributor-regions不存在，nr_redist_regions值为1，获取GICR的地址
 	for (i = 0; i < nr_redist_regions; i++) {
 		struct resource res;
 		int ret;
@@ -1990,6 +1998,7 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 
 	gic_enable_of_quirks(node, gic_quirks, &gic_data);
 
+	//初始化GIC控制器，设置GICD等寄存器来配置NMI、SGI、PPI和SPI中断
 	err = gic_init_bases(dist_base, rdist_regs, nr_redist_regions,
 			     redist_stride, &node->fwnode);
 	if (err)

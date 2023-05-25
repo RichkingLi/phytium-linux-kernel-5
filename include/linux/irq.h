@@ -174,15 +174,15 @@ struct irq_common_data {
  */
 struct irq_data {
 	u32			mask;
-	unsigned int		irq;
-	unsigned long		hwirq;
-	struct irq_common_data	*common;
-	struct irq_chip		*chip;
-	struct irq_domain	*domain;
+	unsigned int		irq;		//虚拟中断号
+	unsigned long		hwirq;		//本控制器的硬件中断号
+	struct irq_common_data	*common;//指向所有irqchips共享的数据
+	struct irq_chip		*chip;		//中断控制器
+	struct irq_domain	*domain;	//中断映射域，负责hwirq号与Linux irq号的映射
 #ifdef	CONFIG_IRQ_DOMAIN_HIERARCHY
-	struct irq_data		*parent_data;
+	struct irq_data		*parent_data;//指向父结构irq_data的指针以支持层次结构
 #endif
-	void			*chip_data;
+	void			*chip_data;		//和中断控制器相关的私有数据
 };
 
 /*

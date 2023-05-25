@@ -53,23 +53,23 @@ struct pt_regs;
  * @name:		flow handler name for /proc/interrupts output
  */
 struct irq_desc {
-	struct irq_common_data	irq_common_data;
-	struct irq_data		irq_data;
-	unsigned int __percpu	*kstat_irqs;
-	irq_flow_handler_t	handle_irq;
-	struct irqaction	*action;	/* IRQ action list */
+	struct irq_common_data	irq_common_data;//每个irq和芯片数据传递到芯片功能
+	struct irq_data		irq_data;			//指向irq_data结构的指针，该结构标识irq
+	unsigned int __percpu	*kstat_irqs;	//每个CPU的irq状态
+	irq_flow_handler_t	handle_irq;			//irq事件处理程序，处理中断的嵌套、抢占等
+	struct irqaction	*action;			//irq action链表，
 	unsigned int		status_use_accessors;
 	unsigned int		core_internal_state__do_not_mess_with_it;
 	unsigned int		depth;		/* nested irq disables */
 	unsigned int		wake_depth;	/* nested wake enables */
-	unsigned int		tot_count;
-	unsigned int		irq_count;	/* For detecting broken IRQs */
-	unsigned long		last_unhandled;	/* Aging timer for unhandled count */
-	unsigned int		irqs_unhandled;
-	atomic_t		threads_handled;
+	unsigned int		tot_count;		//中断发生的总次数，不回滚
+	unsigned int		irq_count;		//记录发生的中断的次数，每100,000则回滚
+	unsigned long		last_unhandled;	//上一次没有处理的IRQ的时间点
+	unsigned int		irqs_unhandled;	//中断没有处理的次数
+	atomic_t		threads_handled;	//中断线程化
 	int			threads_handled_last;
 	raw_spinlock_t		lock;
-	struct cpumask		*percpu_enabled;
+	struct cpumask		*percpu_enabled;//cpumask记录
 	const struct cpumask	*percpu_affinity;
 #ifdef CONFIG_SMP
 	const struct cpumask	*affinity_hint;
@@ -82,7 +82,7 @@ struct irq_desc {
 	atomic_t		threads_active;
 	wait_queue_head_t       wait_for_threads;
 #ifdef CONFIG_PM_SLEEP
-	unsigned int		nr_actions;
+	unsigned int		nr_actions;//action链表中action的数量
 	unsigned int		no_suspend_depth;
 	unsigned int		cond_suspend_depth;
 	unsigned int		force_resume_depth;

@@ -393,6 +393,7 @@ extern void irq_dispose_mapping(unsigned int virq);
 static inline unsigned int irq_create_mapping(struct irq_domain *host,
 					      irq_hw_number_t hwirq)
 {
+	//创建映射
 	return irq_create_mapping_affinity(host, hwirq, NULL);
 }
 

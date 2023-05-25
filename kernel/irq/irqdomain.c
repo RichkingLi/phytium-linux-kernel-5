@@ -531,8 +531,10 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 		return -EINVAL;
 
 	mutex_lock(&irq_domain_mutex);
+	//初始化硬中断号，软中断号在alloc_desc->desc_set_defaults中初始化
 	irq_data->hwirq = hwirq;
 	irq_data->domain = domain;
+	//调用map方法进行映射
 	if (domain->ops->map) {
 		ret = domain->ops->map(domain, virq, hwirq);
 		if (ret != 0) {
@@ -557,6 +559,7 @@ int irq_domain_associate(struct irq_domain *domain, unsigned int virq,
 	}
 
 	domain->mapcount++;
+	//建立了软硬中断号之间的映射关系
 	irq_domain_set_mapping(domain, hwirq, irq_data);
 	mutex_unlock(&irq_domain_mutex);
 
@@ -654,14 +657,14 @@ unsigned int irq_create_mapping_affinity(struct irq_domain *domain,
 
 	of_node = irq_domain_get_of_node(domain);
 
-	/* Check if mapping already exists */
+	//通过硬中断号找软中断号
 	virq = irq_find_mapping(domain, hwirq);
 	if (virq) {
 		pr_debug("-> existing mapping on virq %d\n", virq);
 		return virq;
 	}
 
-	/* Allocate a virtual interrupt number */
+	//申请软件中断号
 	virq = irq_domain_alloc_descs(-1, 1, hwirq, of_node_to_nid(of_node),
 				      affinity);
 	if (virq <= 0) {
@@ -669,6 +672,7 @@ unsigned int irq_create_mapping_affinity(struct irq_domain *domain,
 		return 0;
 	}
 
+	//建立软中断号和硬中断号的映射关系
 	if (irq_domain_associate(domain, virq, hwirq)) {
 		irq_free_desc(virq);
 		return 0;
@@ -721,15 +725,15 @@ static int irq_domain_translate(struct irq_domain *d,
 				irq_hw_number_t *hwirq, unsigned int *type)
 {
 #ifdef CONFIG_IRQ_DOMAIN_HIERARCHY
-	if (d->ops->translate)
+	if (d->ops->translate)//如果translate方法集存在，就调用它
 		return d->ops->translate(d, fwspec, hwirq, type);
 #endif
-	if (d->ops->xlate)
+	if (d->ops->xlate)//如果xlate方法集存在，就调用它
 		return d->ops->xlate(d, to_of_node(fwspec->fwnode),
 				     fwspec->param, fwspec->param_count,
 				     hwirq, type);
 
-	/* If domain has no translation, then we assume interrupt line */
+	//如果转换方法都不存在，则假定中断号
 	*hwirq = fwspec->param[0];
 	return 0;
 }
@@ -755,6 +759,7 @@ unsigned int irq_create_fwspec_mapping(struct irq_fwspec *fwspec)
 	unsigned int type = IRQ_TYPE_NONE;
 	int virq;
 
+	//根据fwspec找到对应的domian
 	if (fwspec->fwnode) {
 		domain = irq_find_matching_fwspec(fwspec, DOMAIN_BUS_WIRED);
 		if (!domain)
@@ -769,6 +774,7 @@ unsigned int irq_create_fwspec_mapping(struct irq_fwspec *fwspec)
 		return 0;
 	}
 
+	//把设备节点里的中断信息解析出hwirq, type
 	if (irq_domain_translate(domain, fwspec, &hwirq, &type))
 		return 0;
 
@@ -779,10 +785,7 @@ unsigned int irq_create_fwspec_mapping(struct irq_fwspec *fwspec)
 	if (WARN_ON(type & ~IRQ_TYPE_SENSE_MASK))
 		type &= IRQ_TYPE_SENSE_MASK;
 
-	/*
-	 * If we've already configured this interrupt,
-	 * don't do it again, or hell will break loose.
-	 */
+	//查看这个hwirq是否已经映射, 如果virq非0，说明找到了就直接返回
 	virq = irq_find_mapping(domain, hwirq);
 	if (virq) {
 		/*
@@ -811,17 +814,20 @@ unsigned int irq_create_fwspec_mapping(struct irq_fwspec *fwspec)
 		return 0;
 	}
 
-	if (irq_domain_is_hierarchy(domain)) {
+	//来到这里说明没有找到，需要创建映射
+	if (irq_domain_is_hierarchy(domain)) {//如果这个是级联中断
+		//根据domian分配虚拟中断号
 		virq = irq_domain_alloc_irqs(domain, 1, NUMA_NO_NODE, fwspec);
 		if (virq <= 0)
 			return 0;
-	} else {
-		/* Create mapping */
+	} else {//否则就是链式中断
+		//创建硬中断号和虚拟中断号的映射关系
 		virq = irq_create_mapping(domain, hwirq);
 		if (!virq)
 			return virq;
 	}
 
+	//通过软件中断号查找irq_data，找不到就返回
 	irq_data = irq_get_irq_data(virq);
 	if (!irq_data) {
 		if (irq_domain_is_hierarchy(domain))
@@ -831,7 +837,7 @@ unsigned int irq_create_fwspec_mapping(struct irq_fwspec *fwspec)
 		return 0;
 	}
 
-	/* Store trigger type */
+	//保存中断触发类型
 	irqd_set_trigger_type(irq_data, type);
 
 	return virq;
@@ -842,9 +848,11 @@ unsigned int irq_create_of_mapping(struct of_phandle_args *irq_data)
 {
 	struct irq_fwspec fwspec;
 
+	//根据irq_data的信息填充irq_fwspec结构体
 	of_phandle_args_to_fwspec(irq_data->np, irq_data->args,
 				  irq_data->args_count, &fwspec);
 
+	//创建从fwspec到IRQ号的映射关系
 	return irq_create_fwspec_mapping(&fwspec);
 }
 EXPORT_SYMBOL_GPL(irq_create_of_mapping);
@@ -1019,15 +1027,18 @@ int irq_domain_alloc_descs(int virq, unsigned int cnt, irq_hw_number_t hwirq,
 	unsigned int hint;
 
 	if (virq >= 0) {
+		//分配和初始化irq_des内存
 		virq = __irq_alloc_descs(virq, virq, cnt, node, THIS_MODULE,
 					 affinity);
 	} else {
 		hint = hwirq % nr_irqs;
 		if (hint == 0)
 			hint++;
+		//分配和初始化irq_des内存
 		virq = __irq_alloc_descs(-1, hint, cnt, node, THIS_MODULE,
 					 affinity);
 		if (virq <= 0 && hint > 1) {
+			//分配和初始化irq_des内存
 			virq = __irq_alloc_descs(-1, 1, cnt, node, THIS_MODULE,
 						 affinity);
 		}
@@ -1433,6 +1444,7 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 	if (realloc && irq_base >= 0) {
 		virq = irq_base;
 	} else {
+		//分配和初始化irq_des内存
 		virq = irq_domain_alloc_descs(irq_base, nr_irqs, 0, node,
 					      affinity);
 		if (virq < 0) {
@@ -1442,6 +1454,7 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 		}
 	}
 
+	//最外层的irq_data被嵌入到结构体irq_desc中
 	if (irq_domain_alloc_irq_data(domain, virq, nr_irqs)) {
 		pr_debug("cannot allocate memory for IRQ%d\n", virq);
 		ret = -ENOMEM;
@@ -1449,6 +1462,7 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 	}
 
 	mutex_lock(&irq_domain_mutex);
+	//调用domain->ops->alloc申请虚拟中断号
 	ret = irq_domain_alloc_irqs_hierarchy(domain, virq, nr_irqs, arg);
 	if (ret < 0) {
 		mutex_unlock(&irq_domain_mutex);
@@ -1456,6 +1470,7 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 	}
 
 	for (i = 0; i < nr_irqs; i++) {
+		//在IRQ域中修剪层次结构，并更新IRQ域的继承关系
 		ret = irq_domain_trim_hierarchy(virq + i);
 		if (ret) {
 			mutex_unlock(&irq_domain_mutex);
@@ -1464,6 +1479,7 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 	}
 	
 	for (i = 0; i < nr_irqs; i++)
+		//将新的中断描述符加入到IRQ域中，以及将中断描述符与对应的中断控制器进行关联
 		irq_domain_insert_irq(virq + i);
 	mutex_unlock(&irq_domain_mutex);
 
