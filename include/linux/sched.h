@@ -292,18 +292,18 @@ struct sched_info {
 	/* Cumulative counters: */
 
 	/* # of times we have run on this CPU: */
-	unsigned long			pcount;
+	unsigned long			pcount;//进程在当前 CPU 运行的时间片数
 
 	/* Time spent waiting on a runqueue: */
-	unsigned long long		run_delay;
+	unsigned long long		run_delay;//进程从运行队列中出队列到再次进队列间的时间
 
 	/* Timestamps: */
 
 	/* When did we last run on a CPU? */
-	unsigned long long		last_arrival;
+	unsigned long long		last_arrival;// 上次被加入运行队列的时间
 
 	/* When were we last queued to run? */
-	unsigned long long		last_queued;
+	unsigned long long		last_queued;// 上次进入运行队列的时间
 
 #endif /* CONFIG_SCHED_INFO */
 };
@@ -659,14 +659,14 @@ struct task_struct {
 	randomized_struct_fields_start
 
 	void				*stack;
-	refcount_t			usage;
+	refcount_t			usage;//当前进程的引用数
 	/* Per task flags (PF_*), defined further below: */
 	unsigned int			flags;
 	unsigned int			ptrace;
 
 #ifdef CONFIG_SMP
-	int				on_cpu;
-	struct __call_single_node	wake_entry;
+	int				on_cpu;//表示当前进程是否正在 CPU 上运行
+	struct __call_single_node	wake_entry;//记录节点锁定对象，用于smp轻量级同步
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/* Current CPU: */
 	unsigned int			cpu;
@@ -687,30 +687,32 @@ struct task_struct {
 #endif
 	int				on_rq;
 
-	int				prio;
-	int				static_prio;
-	int				normal_prio;
-	unsigned int			rt_priority;
+	int				prio;//当前优先级，被动态调整的
+	int				static_prio;//静态优先级，用于设定进程的初始优先级
+	int				normal_prio;//普通优先级，根据进程启动时的参数而决定，可以用来区分普通进程和实时进程
+	unsigned int			rt_priority;//实时优先级
 
-	const struct sched_class	*sched_class;
-	struct sched_entity		se;
-	struct sched_rt_entity		rt;
+	const struct sched_class	*sched_class;//指向进程的调度类
+	struct sched_entity		se;//cfs调度器实体
+	struct sched_rt_entity		rt;//rt调度器实体
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
 #endif
-	struct sched_dl_entity		dl;
+	struct sched_dl_entity		dl;//dl调度器实体
 
 #ifdef CONFIG_UCLAMP_TASK
+	//实现用户层cpu限制机制
 	/*
 	 * Clamp values requested for a scheduling entity.
 	 * Must be updated with task_rq_lock() held.
 	 */
+	//表示进程请求的 CPU 限制值，它包括 `UCLAMP_MIN` 和 `UCLAMP_MAX` 两个值，分别表示进程请求的最小 CPU 利用率和最大 CPU 利用率。
 	struct uclamp_se		uclamp_req[UCLAMP_CNT];
 	/*
 	 * Effective clamp values used for a scheduling entity.
 	 * Must be updated with task_rq_lock() held.
 	 */
-	struct uclamp_se		uclamp[UCLAMP_CNT];
+	struct uclamp_se		uclamp[UCLAMP_CNT];//表示实际使用的 CPU 限制值
 #endif
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
@@ -719,10 +721,10 @@ struct task_struct {
 #endif
 
 #ifdef CONFIG_BLK_DEV_IO_TRACE
-	unsigned int			btrace_seq;
+	unsigned int			btrace_seq;//记录blk trace的函数调用次数
 #endif
 
-	unsigned int			policy;
+	unsigned int			policy;//进程的调度策略
 	int				nr_cpus_allowed;
 	const cpumask_t			*cpus_ptr;
 	cpumask_t			cpus_mask;
@@ -750,19 +752,22 @@ struct task_struct {
 	struct list_head		trc_holdout_list;
 #endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
 
+	//记录与进程调度相关的信息，包括进程的运行状态、CPU 时间和调度时间
 	struct sched_info		sched_info;
 
 	struct list_head		tasks;
 #ifdef CONFIG_SMP
+	//保存当前进程等待被调度的 CPU 的列表
 	struct plist_node		pushable_tasks;
+	//基于红黑树实现的队列，用于保存要求具有固定响应时间的实时进程
 	struct rb_node			pushable_dl_tasks;
 #endif
 
-	struct mm_struct		*mm;
-	struct mm_struct		*active_mm;
+	struct mm_struct		*mm;//链表维护了进程的虚拟内存（包括页表、vma）
+	struct mm_struct		*active_mm;//指向当前使用的虚拟内存（可能是借用）
 
 	/* Per-thread vma caching: */
-	struct vmacache			vmacache;
+	struct vmacache			vmacache;//进程vma的快速访问路劲
 
 #ifdef SPLIT_RSS_COUNTING
 	struct task_rss_stat		rss_stat;
@@ -771,7 +776,7 @@ struct task_struct {
 	int				exit_code;
 	int				exit_signal;
 	/* The signal sent when the parent dies: */
-	int				pdeath_signal;
+	int				pdeath_signal;//保存父进程死亡发出来的信号
 	/* JOBCTL_*, siglock protected: */
 	unsigned long			jobctl;
 
@@ -779,7 +784,7 @@ struct task_struct {
 	unsigned int			personality;
 
 	/* Scheduler bits, serialized by scheduler locks: */
-	unsigned			sched_reset_on_fork:1;
+	unsigned			sched_reset_on_fork:1;//fork的时候调度信息是否需要进行重置
 	unsigned			sched_contributes_to_load:1;
 	unsigned			sched_migrated:1;
 #ifdef CONFIG_PSI
@@ -825,7 +830,7 @@ struct task_struct {
 	unsigned			frozen:1;
 #endif
 #ifdef CONFIG_BLK_CGROUP
-	unsigned			use_memdelay:1;
+	unsigned			use_memdelay:1;//是否开启内存分配延迟
 #endif
 #ifdef CONFIG_PSI
 	/* Stalled due to lack of memory */
@@ -841,7 +846,7 @@ struct task_struct {
 
 #ifdef CONFIG_STACKPROTECTOR
 	/* Canary value for the -fstack-protector GCC feature: */
-	unsigned long			stack_canary;
+	unsigned long			stack_canary;//用于栈保护机制
 #endif
 	/*
 	 * Pointers to the (original) parent process, youngest child, younger sibling,
@@ -874,7 +879,7 @@ struct task_struct {
 	/* PID/PID hash table linkage. */
 	struct pid			*thread_pid;
 	struct hlist_node		pid_links[PIDTYPE_MAX];
-	struct list_head		thread_group;
+	struct list_head		thread_group;//连接所有线程task_struct的链表
 	struct list_head		thread_node;
 
 	struct completion		*vfork_done;
@@ -885,14 +890,14 @@ struct task_struct {
 	/* CLONE_CHILD_CLEARTID: */
 	int __user			*clear_child_tid;
 
-	u64				utime;
-	u64				stime;
+	u64				utime;//用户态时间
+	u64				stime;//系统态时间
 #ifdef CONFIG_ARCH_HAS_SCALED_CPUTIME
 	u64				utimescaled;
 	u64				stimescaled;
 #endif
-	u64				gtime;
-	struct prev_cputime		prev_cputime;
+	u64				gtime;//子进程消耗的时间
+	struct prev_cputime		prev_cputime;//主要用于记录进程的 CPU 时间
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 	struct vtime			vtime;
 #endif
@@ -901,18 +906,18 @@ struct task_struct {
 	atomic_t			tick_dep_mask;
 #endif
 	/* Context switch counts: */
-	unsigned long			nvcsw;
-	unsigned long			nivcsw;
+	unsigned long			nvcsw;//主动进行上下文切换的次数
+	unsigned long			nivcsw;//被迫进行上下文切换的次数
 
 	/* Monotonic time in nsecs: */
-	u64				start_time;
+	u64				start_time;//进程开始运行时间，即使系统时间变了也不会变
 
 	/* Boot based time in nsecs: */
-	u64				start_boottime;
+	u64				start_boottime;//进程开始运行时间，随着系统时间变化而变化
 
 	/* MM fault and swap info: this can arguably be seen as either mm-specific or thread-specific: */
-	unsigned long			min_flt;
-	unsigned long			maj_flt;
+	unsigned long			min_flt;//记录进程的所有次缺页次数
+	unsigned long			maj_flt;//记录进程的所有主缺页次数
 
 	/* Empty if CONFIG_POSIX_CPUTIMERS=n */
 	struct posix_cputimers		posix_cputimers;
@@ -930,7 +935,7 @@ struct task_struct {
 	const struct cred __rcu		*real_cred;
 
 	/* Effective (overridable) subjective task credentials (COW): */
-	const struct cred __rcu		*cred;
+	const struct cred __rcu		*cred;//进程的凭证，包含权限控制和安全相关方面
 
 #ifdef CONFIG_KEYS
 	/* Cached requested key. */
@@ -953,8 +958,8 @@ struct task_struct {
 	struct sysv_shm			sysvshm;
 #endif
 #ifdef CONFIG_DETECT_HUNG_TASK
-	unsigned long			last_switch_count;
-	unsigned long			last_switch_time;
+	unsigned long			last_switch_count;//进程调度次数
+	unsigned long			last_switch_time;//进程被最近调度后的时间戳
 #endif
 	/* Filesystem information: */
 	struct fs_struct		*fs;
@@ -963,7 +968,7 @@ struct task_struct {
 	struct files_struct		*files;
 
 #ifdef CONFIG_IO_URING
-	struct io_uring_task		*io_uring;
+	struct io_uring_task		*io_uring;//用于存储与进程相关的异步I/O请求的信息
 #endif
 
 	/* Namespaces: */
@@ -981,16 +986,16 @@ struct task_struct {
 	size_t				sas_ss_size;
 	unsigned int			sas_ss_flags;
 
-	struct callback_head		*task_works;
+	struct callback_head		*task_works;//用于异步IO的回任务链表
 
 #ifdef CONFIG_AUDIT
 #ifdef CONFIG_AUDITSYSCALL
-	struct audit_context		*audit_context;
+	struct audit_context		*audit_context;//保存进程审计相关上下文
 #endif
 	kuid_t				loginuid;
 	unsigned int			sessionid;
 #endif
-	struct seccomp			seccomp;
+	struct seccomp			seccomp;//存储进程的安全计算过滤，可以过滤系统调用
 
 	/* Thread group tracking: */
 	u64				parent_exec_id;
@@ -1002,7 +1007,7 @@ struct task_struct {
 	/* Protection of the PI data structures: */
 	raw_spinlock_t			pi_lock;
 
-	struct wake_q_node		wake_q;
+	struct wake_q_node		wake_q;//记录任务在等待队列中睡眠的状态，等待唤醒队列就是他
 
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task: */
@@ -1051,7 +1056,7 @@ struct task_struct {
 
 #ifdef CONFIG_BLOCK
 	/* Stack plugging: */
-	struct blk_plug			*plug;
+	struct blk_plug			*plug;//blk_plug的指针，记录块设备IO请求，便于优化IO
 #endif
 
 	/* VM state: */
@@ -1059,7 +1064,7 @@ struct task_struct {
 
 	struct backing_dev_info		*backing_dev_info;
 
-	struct io_context		*io_context;
+	struct io_context		*io_context;//用于保存与进程的异步 I/O 相关的上下文信息
 
 #ifdef CONFIG_COMPACTION
 	struct capture_control		*capture_control;
@@ -1068,7 +1073,7 @@ struct task_struct {
 	unsigned long			ptrace_message;
 	kernel_siginfo_t		*last_siginfo;
 
-	struct task_io_accounting	ioac;
+	struct task_io_accounting	ioac;//用于存储进程的 I/O 操作统计信息
 #ifdef CONFIG_PSI
 	/* Pressure stall state */
 	unsigned int			psi_flags;
@@ -1110,9 +1115,10 @@ struct task_struct {
 	unsigned int			futex_state;
 #endif
 #ifdef CONFIG_PERF_EVENTS
+	//用于记录当前进程与硬件性能计数器之间的关联关系
 	struct perf_event_context	*perf_event_ctxp[perf_nr_task_contexts];
 	struct mutex			perf_event_mutex;
-	struct list_head		perf_event_list;
+	struct list_head		perf_event_list;//perf_event链表，每一个元素表示一个正在被跟踪的硬件计数器
 #endif
 #ifdef CONFIG_DEBUG_PREEMPT
 	unsigned long			preempt_disable_ip;
@@ -1186,14 +1192,14 @@ struct task_struct {
 	struct tlbflush_unmap_batch	tlb_ubc;
 
 	union {
-		refcount_t		rcu_users;
-		struct rcu_head		rcu;
+		refcount_t		rcu_users;//rcu引用计数
+		struct rcu_head		rcu;//rcu链表头
 	};
 
 	/* Cache last used pipe for splice(): */
-	struct pipe_inode_info		*splice_pipe;
+	struct pipe_inode_info		*splice_pipe;//内核管道
 
-	struct page_frag		task_frag;
+	struct page_frag		task_frag;//用于缓存页面和块的数据结构，减少内存分配器的调用次数，提高内核的性能
 
 #ifdef CONFIG_TASK_DELAY_ACCT
 	struct task_delay_info		*delays;
@@ -1207,12 +1213,12 @@ struct task_struct {
 	 * When (nr_dirtied >= nr_dirtied_pause), it's time to call
 	 * balance_dirty_pages() for a dirty throttling pause:
 	 */
-	int				nr_dirtied;
-	int				nr_dirtied_pause;
+	int				nr_dirtied;//脏页计数
+	int				nr_dirtied_pause;//脏页数量阈值
 	/* Start of a write-and-pause period: */
-	unsigned long			dirty_paused_when;
+	unsigned long			dirty_paused_when;//记录进程最近一次停止写入页面的时间
 
-#ifdef CONFIG_LATENCYTOP
+#ifdef CONFIG_LATENCYTOP //not set
 	int				latency_record_count;
 	struct latency_record		latency_record[LT_SAVECOUNT];
 #endif
@@ -1301,15 +1307,15 @@ struct task_struct {
 	unsigned int			memcg_nr_pages_over_high;
 
 	/* Used by memcontrol for targeted memcg charge: */
-	struct mem_cgroup		*active_memcg;
+	struct mem_cgroup		*active_memcg;//用于实现内存隔离、内存配额和限制
 #endif
 
 #ifdef CONFIG_BLK_CGROUP
-	struct request_queue		*throttle_queue;
+	struct request_queue		*throttle_queue;//用于控制进程在磁盘文件系统中的 IO 操作的速率和数量
 #endif
 
 #ifdef CONFIG_UPROBES
-	struct uprobe_task		*utask;
+	struct uprobe_task		*utask;//用于保存当前进程与用户级别的断点（uprobe）有关的信息
 #endif
 #if defined(CONFIG_BCACHE) || defined(CONFIG_BCACHE_MODULE)
 	unsigned int			sequential_io;
@@ -1318,13 +1324,13 @@ struct task_struct {
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 	unsigned long			task_state_change;
 #endif
-	int				pagefault_disabled;
+	int				pagefault_disabled;//记录进程是否处于禁止页故障的状态
 #ifdef CONFIG_MMU
 	struct task_struct		*oom_reaper_list;
 	struct timer_list		oom_reaper_timer;
 #endif
 #ifdef CONFIG_VMAP_STACK
-	struct vm_struct		*stack_vm_area;
+	struct vm_struct		*stack_vm_area;//用于保存当前进程的内核栈所在的内存区域
 #endif
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/* A live task holds one reference: */
@@ -1335,11 +1341,11 @@ struct task_struct {
 #endif
 #ifdef CONFIG_SECURITY
 	/* Used by LSM modules for access restriction: */
-	void				*security;
+	void				*security;//用于支持对进程安全领域相关的安全模块进行控制和管理
 #endif
 
 #ifdef CONFIG_GCC_PLUGIN_STACKLEAK
-	unsigned long			lowest_stack;
+	unsigned long			lowest_stack;//最低栈地址
 	unsigned long			prev_lowest_stack;
 #endif
 
@@ -1361,7 +1367,7 @@ struct task_struct {
 	randomized_struct_fields_end
 
 	/* CPU-specific state of this task: */
-	struct thread_struct		thread;
+	struct thread_struct		thread;//用于描述线程状态的的数据结构
 
 	/*
 	 * WARNING: on x86, 'thread_struct' contains a variable-sized

@@ -3240,24 +3240,25 @@ static inline void init_schedstats(void) {}
  */
 int sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
-	__sched_fork(clone_flags, p);
+	__sched_fork(clone_flags, p);//设置cfs、rt和dl调度器，主要是se、rt、dl这三个成员
 	/*
 	 * We mark the process as NEW here. This guarantees that
 	 * nobody will actually run it, and a signal or other external
 	 * event cannot wake it up and insert it on the runqueue either.
 	 */
-	p->state = TASK_NEW;
+	p->state = TASK_NEW;//设置进程的状态，TASK_NEW是一个临时状态
 
 	/*
 	 * Make sure we do not leak PI boosting priority to the child.
 	 */
-	p->prio = current->normal_prio;
+	p->prio = current->normal_prio;//继承父进程优先级
 
-	uclamp_fork(p);
+	uclamp_fork(p);//初始化用户层cpu限制机制，这里为空
 
 	/*
 	 * Revert to default priority/policy on fork if requested.
 	 */
+	//如果调度信息需要重置
 	if (unlikely(p->sched_reset_on_fork)) {
 		if (task_has_dl_policy(p) || task_has_rt_policy(p)) {
 			p->policy = SCHED_NORMAL;
@@ -3276,6 +3277,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		p->sched_reset_on_fork = 0;
 	}
 
+	//根据优先级设置调度类
 	if (dl_prio(p->prio))
 		return -EAGAIN;
 	else if (rt_prio(p->prio))
@@ -3283,17 +3285,19 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	else
 		p->sched_class = &fair_sched_class;
 
-	init_entity_runnable_average(&p->se);
+	init_entity_runnable_average(&p->se);//设置cfs->avg->load_avg
 
 #ifdef CONFIG_SCHED_INFO
+	//初始化sched_info数据
 	if (likely(sched_info_on()))
 		memset(&p->sched_info, 0, sizeof(p->sched_info));
 #endif
 #if defined(CONFIG_SMP)
 	p->on_cpu = 0;
 #endif
-	init_task_preempt_count(p);
+	init_task_preempt_count(p);//初始化task的thread_info的preempt_count
 #ifdef CONFIG_SMP
+	//初始化pushable_tasks和pushable_dl_tasks
 	plist_node_init(&p->pushable_tasks, MAX_PRIO);
 	RB_CLEAR_NODE(&p->pushable_dl_tasks);
 #endif

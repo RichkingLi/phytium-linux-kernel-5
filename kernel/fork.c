@@ -475,41 +475,50 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 	unsigned long charge;
 	LIST_HEAD(uf);
 
+	//加上一个读者信号量：dup_mmap_sem
 	uprobe_start_dup_mmap();
+	//给父进程加上一个写者类型的信号量：mmap_sem
 	if (mmap_write_lock_killable(oldmm)) {
 		retval = -EINTR;
 		goto fail_uprobe_end;
 	}
-	flush_cache_dup_mm(oldmm);
+	flush_cache_dup_mm(oldmm);//空函数
+	//子进程的flags置位MMF_HAS_UPROBES和MMF_RECALC_UPROBES
 	uprobe_dup_mmap(oldmm, mm);
 	/*
 	 * Not linked in yet - no deadlock potential:
 	 */
+	//mmap_lock上锁
 	mmap_write_lock_nested(mm, SINGLE_DEPTH_NESTING);
 
 	/* No ordering required: file already has been exposed. */
+	//初始化RCU锁
 	RCU_INIT_POINTER(mm->exe_file, get_mm_exe_file(oldmm));
 
+	//设置vm相关
 	mm->total_vm = oldmm->total_vm;
 	mm->data_vm = oldmm->data_vm;
 	mm->exec_vm = oldmm->exec_vm;
 	mm->stack_vm = oldmm->stack_vm;
 
+	//设置红黑树相关
 	rb_link = &mm->mm_rb.rb_node;
 	rb_parent = NULL;
 	pprev = &mm->mmap;
 	retval = ksm_fork(mm, oldmm);
 	if (retval)
 		goto out;
+	//内核大页相关也要copy，并且设置为共享
 	retval = khugepaged_fork(mm, oldmm);
 	if (retval)
 		goto out;
 
 	prev = NULL;
+	//通过for循环遍历父进程中所有的VMA
 	for (mpnt = oldmm->mmap; mpnt; mpnt = mpnt->vm_next) {
 		struct file *file;
 
-		if (mpnt->vm_flags & VM_DONTCOPY) {
+		if (mpnt->vm_flags & VM_DONTCOPY) {//vma不是共享区域
 			vm_stat_account(mm, mpnt->vm_flags, -vma_pages(mpnt));
 			continue;
 		}
@@ -518,17 +527,18 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		 * Don't duplicate many vmas if we've been oom-killed (for
 		 * example)
 		 */
-		if (fatal_signal_pending(current)) {
+		if (fatal_signal_pending(current)) {//如果当前进程已经死亡
 			retval = -EINTR;
 			goto out;
 		}
-		if (mpnt->vm_flags & VM_ACCOUNT) {
+		if (mpnt->vm_flags & VM_ACCOUNT) {//vma是可计数的
 			unsigned long len = vma_pages(mpnt);
 
 			if (security_vm_enough_memory_mm(oldmm, len)) /* sic */
 				goto fail_nomem;
 			charge = len;
 		}
+		//为子进程新创建一个VMA
 		tmp = vm_area_dup(mpnt);
 		if (!tmp)
 			goto fail_nomem;
@@ -538,7 +548,8 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		tmp->vm_mm = mm;
 		retval = dup_userfaultfd(tmp, &uf);
 		if (retval)
-			goto fail_nomem_anon_vma_fork;
+			goto fail_nomem_anon_vma_fork;、
+		//如果这个vma是写保护的
 		if (tmp->vm_flags & VM_WIPEONFORK) {
 			/*
 			 * VM_WIPEONFORK gets a clean slate in the child.
@@ -546,8 +557,11 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 			 * copy page for current vma.
 			 */
 			tmp->anon_vma = NULL;
-		} else if (anon_vma_fork(tmp, mpnt))
+		} 
+		//创建属于子进程的anon_vma数据结构
+		else if (anon_vma_fork(tmp, mpnt))
 			goto fail_nomem_anon_vma_fork;
+		//设置vma的flags
 		tmp->vm_flags &= ~(VM_LOCKED | VM_LOCKONFAULT);
 		file = tmp->vm_file;
 		if (file) {
@@ -583,13 +597,16 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		pprev = &tmp->vm_next;
 		tmp->vm_prev = prev;
 		prev = tmp;
-
+		
+		//把刚才创建的VMA（tmp）插入子进程的mm中
 		__vma_link_rb(mm, tmp, rb_link, rb_parent);
 		rb_link = &tmp->vm_rb.rb_right;
 		rb_parent = &tmp->vm_rb;
 
 		mm->map_count++;
 		if (!(tmp->vm_flags & VM_WIPEONFORK))
+			//复制父进程VMA的页表到子进程页表中
+			//遍历页表中的PGD、P4D、PUD、PMD以及PTE
 			retval = copy_page_range(tmp, mpnt);
 
 		if (tmp->vm_ops && tmp->vm_ops->open)
@@ -599,7 +616,8 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 			goto out;
 	}
 	/* a new mm has just been created */
-	retval = arch_dup_mmap(oldmm, mm);
+	retval = arch_dup_mmap(oldmm, mm);//空函数
+	//下面是一些解锁操作
 out:
 	mmap_write_unlock(mm);
 	flush_tlb_mm(oldmm);
@@ -860,10 +878,12 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 
 	if (node == NUMA_NO_NODE)
 		node = tsk_fork_get_node(orig);
+	//为新进程分配一个进程描述符
 	tsk = alloc_task_struct_node(node);
 	if (!tsk)
 		return NULL;
 
+	//为新进程分配内核栈空间
 	stack = alloc_thread_stack_node(tsk, node);
 	if (!stack)
 		goto free_tsk;
@@ -871,8 +891,10 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	if (memcg_charge_kernel_stack(tsk))
 		goto free_stack;
 
+	//复制父进程的内核栈所在的内存区域，也就是stack_vm_area，
 	stack_vm_area = task_stack_vm_area(tsk);
 
+	//父进程的进程描述符内容直接复制到新进程的进程描述符中
 	err = arch_dup_task_struct(tsk, orig);
 
 	/*
@@ -880,18 +902,18 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	 * sure they're properly initialized before using any stack-related
 	 * functions again.
 	 */
-	tsk->stack = stack;
+	tsk->stack = stack;//设置栈内存地址
 #ifdef CONFIG_VMAP_STACK
-	tsk->stack_vm_area = stack_vm_area;
+	tsk->stack_vm_area = stack_vm_area;//设置内核栈所在的vma
 #endif
 #ifdef CONFIG_THREAD_INFO_IN_TASK
-	refcount_set(&tsk->stack_refcount, 1);
+	refcount_set(&tsk->stack_refcount, 1);//设置stack_refcount为1
 #endif
 
 	if (err)
 		goto free_stack;
 
-	err = scs_prepare(tsk, node);
+	err = scs_prepare(tsk, node);//空
 	if (err)
 		goto free_stack;
 
@@ -902,16 +924,16 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	 * then. Until then, filter must be NULL to avoid messing up
 	 * the usage counts on the error path calling free_task.
 	 */
-	tsk->seccomp.filter = NULL;
+	tsk->seccomp.filter = NULL;//设置安全过滤器为空
 #endif
 
-	setup_thread_stack(tsk, orig);
-	clear_user_return_notifier(tsk);
-	clear_tsk_need_resched(tsk);
-	set_task_stack_end_magic(tsk);
+	setup_thread_stack(tsk, orig);//空
+	clear_user_return_notifier(tsk);//空
+	clear_tsk_need_resched(tsk);//清除TIF_NEED_RESCHED标志位
+	set_task_stack_end_magic(tsk);//设置任务栈结束标记
 
 #ifdef CONFIG_STACKPROTECTOR
-	tsk->stack_canary = get_random_canary();
+	tsk->stack_canary = get_random_canary();//初始化stack_canary
 #endif
 	if (orig->cpus_ptr == &orig->cpus_mask)
 		tsk->cpus_ptr = &tsk->cpus_mask;
@@ -920,33 +942,36 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	 * One for the user space visible state that goes away when reaped.
 	 * One for the scheduler.
 	 */
-	refcount_set(&tsk->rcu_users, 2);
+	refcount_set(&tsk->rcu_users, 2);//初始化rcu引用计数
 	/* One for the rcu users */
-	refcount_set(&tsk->usage, 1);
+	refcount_set(&tsk->usage, 1);//task的引用计数为1
 #ifdef CONFIG_BLK_DEV_IO_TRACE
 	tsk->btrace_seq = 0;
 #endif
+	//初始化task_struct的几个成员而已
 	tsk->splice_pipe = NULL;
 	tsk->task_frag.page = NULL;
 	tsk->wake_q.next = NULL;
 
-	account_kernel_stack(tsk, 1);
+	account_kernel_stack(tsk, 1);//更新内核栈这块内存在lrc链表的热度
 
-	kcov_task_init(tsk);
+	kcov_task_init(tsk);//初始化kcov相关，用于统计内核代码覆盖率，这里是空
 
 #ifdef CONFIG_FAULT_INJECTION
 	tsk->fail_nth = 0;
 #endif
 
 #ifdef CONFIG_BLK_CGROUP
+	//初始化IO限流相关
 	tsk->throttle_queue = NULL;
 	tsk->use_memdelay = 0;
 #endif
 
 #ifdef CONFIG_MEMCG
+	//初始化mem cgroup
 	tsk->active_memcg = NULL;
 #endif
-	return tsk;
+	return tsk;//返回task_struct结构体
 
 free_stack:
 	free_thread_stack(tsk);
@@ -1050,14 +1075,16 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		mm->def_flags = 0;
 	}
 
+	//申请一级页表目录写入pgd
 	if (mm_alloc_pgd(mm))
 		goto fail_nopgd;
 
+	//初始化context成员
 	if (init_new_context(p, mm))
 		goto fail_nocontext;
 
-	mm->user_ns = get_user_ns(user_ns);
-	return mm;
+	mm->user_ns = get_user_ns(user_ns);//user_ns原子+1
+	return mm;//返回mm_struct
 
 fail_nocontext:
 	mm_free_pgd(mm);
@@ -1359,26 +1386,30 @@ static struct mm_struct *dup_mm(struct task_struct *tsk,
 	struct mm_struct *mm;
 	int err;
 
-	mm = allocate_mm();
+	mm = allocate_mm();//子进程分配一个内存描述符mm
 	if (!mm)
 		goto fail_nomem;
 
+	//把父进程的内存描述符的内容全部复制到子进程
 	memcpy(mm, oldmm, sizeof(*mm));
 
+	//初始化子进程的内存描述符的一些成员
 	if (!mm_init(mm, tsk, mm->user_ns))
 		goto fail_nomem;
 
+	//复制父进程的进程地址空间的页表到子进程
 	err = dup_mmap(mm, oldmm);
 	if (err)
 		goto free_pt;
 
+	//初始化内存水位
 	mm->hiwater_rss = get_mm_rss(mm);
 	mm->hiwater_vm = mm->total_vm;
 
 	if (mm->binfmt && !try_module_get(mm->binfmt->module))
 		goto free_pt;
 
-	return mm;
+	return mm;//返回mm_struct
 
 free_pt:
 	/* don't put binfmt in mmput, we haven't got module yet */
@@ -1395,9 +1426,11 @@ static int copy_mm(unsigned long clone_flags, struct task_struct *tsk)
 	struct mm_struct *mm, *oldmm;
 	int retval;
 
+	//初始化进程的缺页情况
 	tsk->min_flt = tsk->maj_flt = 0;
 	tsk->nvcsw = tsk->nivcsw = 0;
 #ifdef CONFIG_DETECT_HUNG_TASK
+	//更新进程调度次数和调度时间
 	tsk->last_switch_count = tsk->nvcsw + tsk->nivcsw;
 	tsk->last_switch_time = 0;
 #endif
@@ -1410,25 +1443,29 @@ static int copy_mm(unsigned long clone_flags, struct task_struct *tsk)
 	 *
 	 * We need to steal a active VM for that..
 	 */
+	//借用父进程的mm
 	oldmm = current->mm;
 	if (!oldmm)
 		return 0;
 
 	/* initialize the new vmacache entries */
-	vmacache_flush(tsk);
-
+	vmacache_flush(tsk);//初始化vmacache.vmas
+	
+	//如果创建的是线程
 	if (clone_flags & CLONE_VM) {
-		mmget(oldmm);
+		mmget(oldmm);//父进程的user数量+1
 		mm = oldmm;
 		goto good_mm;
 	}
 
 	retval = -ENOMEM;
+	//复制父进程的进程地址空间
 	mm = dup_mm(tsk, current->mm);
 	if (!mm)
 		goto fail_nomem;
 
 good_mm:
+	//设置mm和active_mm
 	tsk->mm = mm;
 	tsk->active_mm = mm;
 	return 0;
@@ -1936,19 +1973,22 @@ static __latent_entropy struct task_struct *copy_process(
 	 * processes that happen during the fork and delay them so that
 	 * they appear to happen after the fork.
 	 */
+	//在执行fork系统调用之前，会将这段时间内的信号集中起来，延迟到fork发生之后再进行递送。这样可以防止多个进程同时接收到同一个信号。
 	sigemptyset(&delayed.signal);
 	INIT_HLIST_NODE(&delayed.node);
 
-	spin_lock_irq(&current->sighand->siglock);
+	spin_lock_irq(&current->sighand->siglock);//自旋锁上锁
 	if (!(clone_flags & CLONE_THREAD))
 		hlist_add_head(&delayed.node, &current->signal->multiprocess);
+	//重新计算进程的未决信号集合，并将已经处理的信号删除。
 	recalc_sigpending();
-	spin_unlock_irq(&current->sighand->siglock);
+	spin_unlock_irq(&current->sighand->siglock);//自旋锁解锁
 	retval = -ERESTARTNOINTR;
 	if (signal_pending(current))
 		goto fork_out;
 
 	retval = -ENOMEM;
+	//为新进程分配一个task_struct数据结构
 	p = dup_task_struct(current, node);
 	if (!p)
 		goto fork_out;
@@ -1965,11 +2005,11 @@ static __latent_entropy struct task_struct *copy_process(
 	 */
 	p->clear_child_tid = (clone_flags & CLONE_CHILD_CLEARTID) ? args->child_tid : NULL;
 
-	ftrace_graph_init_task(p);
+	ftrace_graph_init_task(p);//ftrace跟踪使用
 
-	rt_mutex_init_task(p);
+	rt_mutex_init_task(p);//初始化新task_struct中的几个实时互斥量
 
-	lockdep_assert_irqs_enabled();
+	lockdep_assert_irqs_enabled();//检查当前中断是否已启用，一般为空函数
 #ifdef CONFIG_PROVE_LOCKING
 	DEBUG_LOCKS_WARN_ON(!p->softirqs_enabled);
 #endif
@@ -1982,7 +2022,7 @@ static __latent_entropy struct task_struct *copy_process(
 	}
 	current->flags &= ~PF_NPROC_EXCEEDED;
 
-	retval = copy_creds(p, clone_flags);
+	retval = copy_creds(p, clone_flags);//初始化进程的凭据，实现权限和安全相关
 	if (retval < 0)
 		goto bad_fork_free;
 
@@ -1995,22 +2035,22 @@ static __latent_entropy struct task_struct *copy_process(
 	if (data_race(nr_threads >= max_threads))
 		goto bad_fork_cleanup_count;
 
-	delayacct_tsk_init(p);	/* Must remain after dup_task_struct() */
+	delayacct_tsk_init(p);//初始化延迟任务，用于计算延迟信息
 	p->flags &= ~(PF_SUPERPRIV | PF_WQ_WORKER | PF_IDLE);
 	p->flags |= PF_FORKNOEXEC;
-	INIT_LIST_HEAD(&p->children);
-	INIT_LIST_HEAD(&p->sibling);
-	rcu_copy_process(p);
+	INIT_LIST_HEAD(&p->children);//初始化子进程链表
+	INIT_LIST_HEAD(&p->sibling);//初始化兄弟进程链表
+	rcu_copy_process(p);//初始化task_struct中rcu相关数据和链表
 	p->vfork_done = NULL;
-	spin_lock_init(&p->alloc_lock);
+	spin_lock_init(&p->alloc_lock);//子进程的task数据上自旋锁
 
-	init_sigpending(&p->pending);
+	init_sigpending(&p->pending);//初始化task的sigpending结构体
 
-	p->utime = p->stime = p->gtime = 0;
+	p->utime = p->stime = p->gtime = 0;//初始化task的用户态、系统态和子进程消耗时间
 #ifdef CONFIG_ARCH_HAS_SCALED_CPUTIME
 	p->utimescaled = p->stimescaled = 0;
 #endif
-	prev_cputime_init(&p->prev_cputime);
+	prev_cputime_init(&p->prev_cputime);//初始化prev_cputime结构体，用于计算cpu时间
 
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 	seqcount_init(&p->vtime.seqcount);
@@ -2019,7 +2059,7 @@ static __latent_entropy struct task_struct *copy_process(
 #endif
 
 #ifdef CONFIG_IO_URING
-	p->io_uring = NULL;
+	p->io_uring = NULL;//初始化io_uring结构体指针，用于存储与进程相关的异步I/O请求的信息
 #endif
 
 #if defined(SPLIT_RSS_COUNTING)
@@ -2032,14 +2072,15 @@ static __latent_entropy struct task_struct *copy_process(
 	p->psi_flags = 0;
 #endif
 
+	//初始化ioac成员，用于存储进程的 I/O 操作统计信息
 	task_io_accounting_init(&p->ioac);
-	acct_clear_integrals(p);
+	acct_clear_integrals(p);//清除task中的acct*信息
 
 	posix_cputimers_init(&p->posix_cputimers);
 
-	p->io_context = NULL;
-	audit_set_context(p, NULL);
-	cgroup_fork(p);
+	p->io_context = NULL;//初始化io_context
+	audit_set_context(p, NULL);//初始化审计上下文
+	cgroup_fork(p);//初始化cgroup相关字段
 #ifdef CONFIG_NUMA
 	p->mempolicy = mpol_dup(p->mempolicy);
 	if (IS_ERR(p->mempolicy)) {
@@ -2049,6 +2090,7 @@ static __latent_entropy struct task_struct *copy_process(
 	}
 #endif
 #ifdef CONFIG_CPUSETS
+	//初始化cpuset
 	p->cpuset_mem_spread_rotor = NUMA_NO_NODE;
 	p->cpuset_slab_spread_rotor = NUMA_NO_NODE;
 	seqcount_spinlock_init(&p->mems_allowed_seq, &p->alloc_lock);
@@ -2061,7 +2103,7 @@ static __latent_entropy struct task_struct *copy_process(
 	p->softirq_context		= 0;
 #endif
 
-	p->pagefault_disabled = 0;
+	p->pagefault_disabled = 0;//初始化task_struct成员
 
 #ifdef CONFIG_LOCKDEP
 	lockdep_init_task(p);
@@ -2076,52 +2118,65 @@ static __latent_entropy struct task_struct *copy_process(
 #endif
 
 	/* Perform scheduler related setup. Assign this task to a CPU. */
+	//初始化与进程调度相关的数据结构。将此任务分配给CPU。
 	retval = sched_fork(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_policy;
 
+	//初始化task_struct中的perf_event上下文
 	retval = perf_event_init_task(p);
 	if (retval)
 		goto bad_fork_cleanup_policy;
-	retval = audit_alloc(p);
+	retval = audit_alloc(p);//为任务分配审计上下文块
 	if (retval)
 		goto bad_fork_cleanup_perf;
 	/* copy all the process information */
-	shm_init_task(p);
+	shm_init_task(p);//初始化sysvshm成员
+	//申请task的security资源
 	retval = security_task_alloc(p, clone_flags);
 	if (retval)
 		goto bad_fork_cleanup_audit;
+	//初始化task的sysvsem.undo_list
 	retval = copy_semundo(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_security;
+	//复制父进程打开的文件等信息
 	retval = copy_files(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_semundo;
+	//复制父进程的fs_struct数据结构
 	retval = copy_fs(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_files;
+	//复制父进程的信号处理函数，主要是sighand成员的初始化
 	retval = copy_sighand(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_fs;
+	//复制父进程的信号系统，主要是signal成员的初始化
 	retval = copy_signal(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_sighand;
+	//复制父进程的进程地址空间的页表
 	retval = copy_mm(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_signal;
+	//复制父进程的命名空间
 	retval = copy_namespaces(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_mm;
+	//复制父进程中与I/O相关的内容，主要是io_context成员
 	retval = copy_io(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_namespaces;
+	//复制父进程的内核堆信息，主要是thread成员
 	retval = copy_thread(clone_flags, args->stack, args->stack_size, p, args->tls);
 	if (retval)
 		goto bad_fork_cleanup_io;
 
-	stackleak_task_init(p);
+	stackleak_task_init(p);//设置最低栈地址lowest_stack，用于栈溢出检查
 
 	if (pid != &init_struct_pid) {
+		//为新进程分配一个pid数据结构和PID
 		pid = alloc_pid(p->nsproxy->pid_ns_for_children, args->set_tid,
 				args->set_tid_size);
 		if (IS_ERR(pid)) {
@@ -2135,6 +2190,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * descriptor table (so that the pidfd doesn't leak into the child
 	 * if the fd table isn't shared).
 	 */
+	//如果pidfd不被共享
 	if (clone_flags & CLONE_PIDFD) {
 		retval = get_unused_fd_flags(O_RDWR | O_CLOEXEC);
 		if (retval < 0)
@@ -2159,7 +2215,7 @@ static __latent_entropy struct task_struct *copy_process(
 #ifdef CONFIG_BLOCK
 	p->plug = NULL;
 #endif
-	futex_init_task(p);
+	futex_init_task(p);//初始化进程的Futex相关数据，包括robust_list、futex_state、futex_exit_mutex、pi_state_list、pi_state_cache
 
 	/*
 	 * sigaltstack should be cleared when sharing the same VM
@@ -2171,31 +2227,34 @@ static __latent_entropy struct task_struct *copy_process(
 	 * Syscall tracing and stepping should be turned off in the
 	 * child regardless of CLONE_PTRACE.
 	 */
-	user_disable_single_step(p);
+	user_disable_single_step(p);//关闭跟踪
+	//清除TIF_SYSCALL_TRACE标志位
 	clear_tsk_thread_flag(p, TIF_SYSCALL_TRACE);
 #ifdef TIF_SYSCALL_EMU
+	//清除TIF_SYSCALL_EMU标志位
 	clear_tsk_thread_flag(p, TIF_SYSCALL_EMU);
 #endif
-	clear_tsk_latency_tracing(p);
+	clear_tsk_latency_tracing(p);//清除延迟跟踪标志位，我们没有开启延迟跟踪，这里空函数
 
 	/* ok, now we should be set up.. */
-	p->pid = pid_nr(pid);
-	if (clone_flags & CLONE_THREAD) {
+	p->pid = pid_nr(pid);//分配一个全局PID号
+	if (clone_flags & CLONE_THREAD) {//创建一个线程
 		p->group_leader = current->group_leader;
 		p->tgid = current->tgid;
-	} else {
+	} else {//创建一个进程
 		p->group_leader = p;
 		p->tgid = p->pid;
 	}
 
+	//初始化脏页相关
 	p->nr_dirtied = 0;
 	p->nr_dirtied_pause = 128 >> (PAGE_SHIFT - 10);
 	p->dirty_paused_when = 0;
 
 	p->pdeath_signal = 0;
-	INIT_LIST_HEAD(&p->thread_group);
-	p->task_works = NULL;
-	clear_posix_cputimers_work(p);
+	INIT_LIST_HEAD(&p->thread_group);//初始化线程组链表
+	p->task_works = NULL;//回调任务链表初始化
+	clear_posix_cputimers_work(p);//空
 
 	/*
 	 * Ensure that the cgroup subsystem policies allow the new process to be
@@ -2215,6 +2274,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * visible to the system.
 	 */
 
+	//初始化进程的开始时间
 	p->start_time = ktime_get_ns();
 	p->start_boottime = ktime_get_boottime_ns();
 
@@ -2238,7 +2298,7 @@ static __latent_entropy struct task_struct *copy_process(
 		p->exit_signal = args->exit_signal;
 	}
 
-	klp_copy_process(p);
+	klp_copy_process(p);//空
 
 	spin_lock(&current->sighand->siglock);
 
@@ -2246,9 +2306,9 @@ static __latent_entropy struct task_struct *copy_process(
 	 * Copy seccomp details explicitly here, in case they were changed
 	 * before holding sighand lock.
 	 */
-	copy_seccomp(p);
+	copy_seccomp(p);//初始化seccomp数据，用于安全计算
 
-	rseq_fork(p, clone_flags);
+	rseq_fork(p, clone_flags);//初始化task的rseq_fork、rseq_sig和rseq_event_mask，作用不了解
 
 	/* Don't start children in a dying pid namespace */
 	if (unlikely(!(ns_of_pid(pid)->pid_allocated & PIDNS_ADDING))) {
@@ -2262,7 +2322,8 @@ static __latent_entropy struct task_struct *copy_process(
 		goto bad_fork_cancel_cgroup;
 	}
 
-	init_task_pid_links(p);
+	init_task_pid_links(p);//初始化task的pid_links数组
+	//把新进程加入进程管理流程中
 	if (likely(p->pid)) {
 		ptrace_init_task(p, (clone_flags & CLONE_PTRACE) || trace);
 
@@ -2307,23 +2368,23 @@ static __latent_entropy struct task_struct *copy_process(
 	total_forks++;
 	hlist_del_init(&delayed.node);
 	spin_unlock(&current->sighand->siglock);
-	syscall_tracepoint_update(p);
+	syscall_tracepoint_update(p);//跟新系统调用的静态观察点
 	write_unlock_irq(&tasklist_lock);
 
 	if (pidfile)
-		fd_install(pidfd, pidfile);
+		fd_install(pidfd, pidfile);//将文件描述符和文件/管道的指针关联起来
 
-	proc_fork_connector(p);
-	sched_post_fork(p, args);
-	cgroup_post_fork(p, args);
-	perf_event_fork(p);
+	proc_fork_connector(p);//空
+	sched_post_fork(p, args);//为新进程设置调度属性
+	cgroup_post_fork(p, args);//为新进程进行组设置
+	perf_event_fork(p);//设置新进程性能事件
 
-	trace_task_newtask(p, clone_flags);
-	uprobe_copy_process(p, clone_flags);
+	trace_task_newtask(p, clone_flags);//trace相关
+	uprobe_copy_process(p, clone_flags);//复制父进程的用户层断点
 
-	copy_oom_score_adj(clone_flags, p);
+	copy_oom_score_adj(clone_flags, p);//复制父进程的signal->oom_score_adj
 
-	return p;
+	return p;//返回子进程描述符
 
 bad_fork_cancel_cgroup:
 	spin_unlock(&current->sighand->siglock);
@@ -2444,6 +2505,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	 * here has the advantage that we don't need to have a separate helper
 	 * to check for legacy clone().
 	 */
+	//CLONE_PIDFD和CLONE_PARENT_SETTID互斥的情况
 	if ((args->flags & CLONE_PIDFD) &&
 	    (args->flags & CLONE_PARENT_SETTID) &&
 	    (args->pidfd == args->parent_tid))
@@ -2455,6 +2517,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	 * requested, no event is reported; otherwise, report if the event
 	 * for the type of forking is enabled.
 	 */
+	//检查子进程是否允许被跟踪
 	if (!(clone_flags & CLONE_UNTRACED)) {
 		if (clone_flags & CLONE_VFORK)
 			trace = PTRACE_EVENT_VFORK;
@@ -2467,6 +2530,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 			trace = 0;
 	}
 
+    //函数创建一个新的子进程
 	p = copy_process(NULL, trace, NUMA_NO_NODE, args);
 	add_latent_entropy();
 
@@ -2479,18 +2543,20 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	 */
 	trace_sched_process_fork(current, p);
 
+	//根据子进程的task_struct数据结构获取 pid结构体
 	pid = get_task_pid(p, PIDTYPE_PID);
-	nr = pid_vnr(pid);
+	nr = pid_vnr(pid);//由子pid结构体来计算PID值
 
 	if (clone_flags & CLONE_PARENT_SETTID)
 		put_user(nr, args->parent_tid);
 
 	if (clone_flags & CLONE_VFORK) {
 		p->vfork_done = &vfork;
-		init_completion(&vfork);
+		init_completion(&vfork);//初始化完成量
 		get_task_struct(p);
 	}
 
+	//唤醒新创建的进程，把进程加入就绪队列里并接受调度、运行
 	wake_up_new_task(p);
 
 	/* forking complete and child started to run, tell ptracer */
@@ -2498,12 +2564,13 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		ptrace_event_pid(trace, pid);
 
 	if (clone_flags & CLONE_VFORK) {
+		//等待子进程调用exec()或者exit()
 		if (!wait_for_vfork_done(p, &vfork))
 			ptrace_event_pid(PTRACE_EVENT_VFORK_DONE, pid);
 	}
 
-	put_pid(pid);
-	return nr;
+	put_pid(pid);//减少pid数据得应用计数
+	return nr;//返回值为子进程的ID
 }
 
 /*

@@ -385,6 +385,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 {
 	struct pt_regs *childregs = task_pt_regs(p);
 
+    //清空cpu_context
 	memset(&p->thread.cpu_context, 0, sizeof(struct cpu_context));
 
 	/*
@@ -398,6 +399,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 
 	ptrauth_thread_init_kernel(p);
 
+    //处理子进程是用户进程的情况
 	if (likely(!(p->flags & PF_KTHREAD))) {
 		*childregs = *current_pt_regs();
 		childregs->regs[0] = 0;
@@ -421,7 +423,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		 */
 		if (clone_flags & CLONE_SETTLS)
 			p->thread.uw.tp_value = tls;
-	} else {
+	} else {//处理子进程是内核线程的情况
 		memset(childregs, 0, sizeof(struct pt_regs));
 		childregs->pstate = PSR_MODE_EL1h;
 		if (IS_ENABLED(CONFIG_ARM64_UAO) &&
@@ -436,6 +438,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		p->thread.cpu_context.x19 = stack_start;
 		p->thread.cpu_context.x20 = stk_sz;
 	}
+	//设置子进程的进程硬件上下文（struct cpu_context）中pc和sp成员的值
 	p->thread.cpu_context.pc = (unsigned long)ret_from_fork;
 	p->thread.cpu_context.sp = (unsigned long)childregs;
 
