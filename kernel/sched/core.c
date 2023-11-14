@@ -3246,7 +3246,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * nobody will actually run it, and a signal or other external
 	 * event cannot wake it up and insert it on the runqueue either.
 	 */
-	p->state = TASK_NEW;//设置进程的状态，TASK_NEW是一个临时状态
+	p->state = TASK_NEW;//设置进程的状态：TASK_NEW，它还没被添加到调度器里
 
 	/*
 	 * Make sure we do not leak PI boosting priority to the child.
@@ -3278,14 +3278,16 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	}
 
 	//根据优先级设置调度类
-	if (dl_prio(p->prio))
+	if (dl_prio(p->prio))//如果是dl进程
 		return -EAGAIN;
-	else if (rt_prio(p->prio))
+	else if (rt_prio(p->prio))//如果是rt进程
+		//选用RT的调度类rt_sched_class
 		p->sched_class = &rt_sched_class;
-	else
+	else//那就是普通进程
+		//选用CFS的调度类fair_sched_class
 		p->sched_class = &fair_sched_class;
 
-	init_entity_runnable_average(&p->se);//设置cfs->avg->load_avg
+	init_entity_runnable_average(&p->se);//初始化与子进程的调度实体，主要是se->avg
 
 #ifdef CONFIG_SCHED_INFO
 	//初始化sched_info数据
@@ -3323,6 +3325,7 @@ void sched_post_fork(struct task_struct *p, struct kernel_clone_args *kargs)
 	 * so use __set_task_cpu().
 	 */
 	__set_task_cpu(p, smp_processor_id());
+	//cfs会调用task_fork_fair，dl会调用task_fork_dl，rt是空
 	if (p->sched_class->task_fork)
 		p->sched_class->task_fork(p);
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
@@ -3359,7 +3362,7 @@ void wake_up_new_task(struct task_struct *p)
 	struct rq *rq;
 
 	raw_spin_lock_irqsave(&p->pi_lock, rf.flags);
-	p->state = TASK_RUNNING;
+	p->state = TASK_RUNNING;//进程的状态变为TASK_RUNNING
 #ifdef CONFIG_SMP
 	/*
 	 * Fork balancing, do it here and not earlier because:
@@ -3369,18 +3372,22 @@ void wake_up_new_task(struct task_struct *p)
 	 * Use __set_task_cpu() to avoid calling sched_class::migrate_task_rq,
 	 * as we're not fully set-up yet.
 	 */
-	p->recent_used_cpu = task_cpu(p);
+	p->recent_used_cpu = task_cpu(p);//设置recent_used_cpu
 	rseq_migrate(p);
+	//设置子进程将来要在哪个CPU上运行
 	__set_task_cpu(p, select_task_rq(p, task_cpu(p), SD_BALANCE_FORK, 0));
 #endif
 	rq = __task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 	post_init_entity_util_avg(p);
 
+	//调用enqueue_task把子进程放入就绪队列并且设置状态（on_rq）
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
 	trace_sched_wakeup_new(p);
+	//检查是否需要抢占父进程
 	check_preempt_curr(rq, p, WF_FORK);
 #ifdef CONFIG_SMP
+	//调用cfs的ops的task_woken处理进程被唤醒的情况，毕竟是第一次唤醒
 	if (p->sched_class->task_woken) {
 		/*
 		 * Nothing relies on rq->lock after this, so its fine to

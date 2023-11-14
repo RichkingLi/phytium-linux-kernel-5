@@ -323,8 +323,8 @@ struct sched_info {
 # define SCHED_CAPACITY_SCALE		(1L << SCHED_CAPACITY_SHIFT)
 
 struct load_weight {
-	unsigned long			weight;
-	u32				inv_weight;
+	unsigned long			weight;//调度实体的权重
+	u32				inv_weight;//权重的中间计算结果
 };
 
 /**
@@ -456,21 +456,22 @@ struct sched_statistics {
 #endif
 };
 
+//cfs调度策略
 struct sched_entity {
 	/* For load-balancing: */
-	struct load_weight		load;
-	struct rb_node			run_node;
-	struct list_head		group_node;
-	unsigned int			on_rq;
+	struct load_weight		load;//记录调度实体的权重
+	struct rb_node			run_node;//调度实体作为一个节点插入CFS的红黑树里
+	struct list_head		group_node;//记录进程所属组的双向链表节点
+	unsigned int			on_rq;//记录进程是否在就绪队列中
 
-	u64				exec_start;
-	u64				sum_exec_runtime;
-	u64				vruntime;
-	u64				prev_sum_exec_runtime;
+	u64				exec_start;//计算调度实体虚拟时间的起始时间
+	u64				sum_exec_runtime;//调度实体的总运行时间，这是真实时间
+	u64				vruntime;//调度实体的虚拟时间
+	u64				prev_sum_exec_runtime;//上一次统计调度实体运行的总时间
 
-	u64				nr_migrations;
+	u64				nr_migrations;//该调度实体发生迁移的次数
 
-	struct sched_statistics		statistics;
+	struct sched_statistics		statistics;//统计信息
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	int				depth;
@@ -480,6 +481,7 @@ struct sched_entity {
 	/* rq "owned" by this entity/group: */
 	struct cfs_rq			*my_q;
 	/* cached value of my_q->h_nr_running */
+	//表示进程在可运行（runnable）状态的权重，这个值等于进程的权重
 	unsigned long			runnable_weight;
 #endif
 
@@ -490,10 +492,10 @@ struct sched_entity {
 	 * Put into separate cache line so it does not
 	 * collide with read-mostly values above.
 	 */
-	struct sched_avg		avg;
+	struct sched_avg		avg;//记录与负载相关的信息
 #endif
 };
-
+//rt调度策略
 struct sched_rt_entity {
 	struct list_head		run_list;
 	unsigned long			timeout;
@@ -512,6 +514,7 @@ struct sched_rt_entity {
 #endif
 } __randomize_layout;
 
+//dl调度策略
 struct sched_dl_entity {
 	struct rb_node			rb_node;
 
@@ -647,10 +650,10 @@ struct task_struct {
 	 * For reasons of header soup (see current_thread_info()), this
 	 * must be the first element of task_struct.
 	 */
-	struct thread_info		thread_info;
+	struct thread_info		thread_info;//记录进程或线程状态
 #endif
 	/* -1 unrunnable, 0 runnable, >0 stopped: */
-	volatile long			state;
+	volatile long			state;//进程的当前状态（可执行、不可执行、停止）
 
 	/*
 	 * This begins the randomizable portion of task_struct. Only
@@ -669,11 +672,11 @@ struct task_struct {
 	struct __call_single_node	wake_entry;//记录节点锁定对象，用于smp轻量级同步
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/* Current CPU: */
-	unsigned int			cpu;
+	unsigned int			cpu;//表示进程正运行在哪个CPU上
 #endif
-	unsigned int			wakee_flips;
-	unsigned long			wakee_flip_decay_ts;
-	struct task_struct		*last_wakee;
+	unsigned int			wakee_flips;//用于wake affine特性
+	unsigned long			wakee_flip_decay_ts;//用于记录上一次wakee_flips的时间
+	struct task_struct		*last_wakee;//表示上一次唤醒的是哪个进程
 
 	/*
 	 * recent_used_cpu is initially set as the last CPU used by a task
@@ -682,23 +685,26 @@ struct task_struct {
 	 * Tracking a recently used CPU allows a quick search for a recently
 	 * used CPU that may be idle.
 	 */
-	int				recent_used_cpu;
-	int				wake_cpu;
+	int				recent_used_cpu;//表示进程上一次运行在哪个CPU上
+	int				wake_cpu;//用于标识进程需要唤醒的 CPU 核心编号
 #endif
+	//设置进程的是否在就绪队列中，
+	//TASK_ON_RQ_QUEUED：表示进程正在就绪队列中运行。
+	//TASK_ON_RQ_MIGRATING：表示处于迁移过程中的进程
 	int				on_rq;
 
-	int				prio;//当前优先级，被动态调整的
+	int				prio;//当前（动态）优先级，被动态调整的
 	int				static_prio;//静态优先级，用于设定进程的初始优先级
-	int				normal_prio;//普通优先级，根据进程启动时的参数而决定，可以用来区分普通进程和实时进程
-	unsigned int			rt_priority;//实时优先级
+	int				normal_prio;//基于static_prio和调度策略计算出来的优先级
+	unsigned int			rt_priority;//实时进程优先级
 
-	const struct sched_class	*sched_class;//指向进程的调度类
-	struct sched_entity		se;//cfs调度器实体
-	struct sched_rt_entity		rt;//rt调度器实体
+	const struct sched_class	*sched_class;//指向进程的调度类操作方法集
+	struct sched_entity		se;//普通进程调度器实体
+	struct sched_rt_entity		rt;//实时进程调度器实体
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
 #endif
-	struct sched_dl_entity		dl;//dl调度器实体
+	struct sched_dl_entity		dl;//dl进程调度器实体
 
 #ifdef CONFIG_UCLAMP_TASK
 	//实现用户层cpu限制机制
@@ -727,7 +733,7 @@ struct task_struct {
 	unsigned int			policy;//进程的调度策略
 	int				nr_cpus_allowed;
 	const cpumask_t			*cpus_ptr;
-	cpumask_t			cpus_mask;
+	cpumask_t			cpus_mask;//进程允许运行的CPU位图
 
 #ifdef CONFIG_PREEMPT_RCU
 	int				rcu_read_lock_nesting;

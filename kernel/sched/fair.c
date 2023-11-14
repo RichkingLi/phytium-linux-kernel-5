@@ -852,12 +852,13 @@ static void update_tg_load_avg(struct cfs_rq *cfs_rq)
 static void update_curr(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *curr = cfs_rq->curr;
-	u64 now = rq_clock_task(rq_of(cfs_rq));
+	u64 now = rq_clock_task(rq_of(cfs_rq));//获取当前就绪队列保存的clock_task值
 	u64 delta_exec;
 
 	if (unlikely(!curr))
 		return;
 
+	//计算该进程从上次调用update_curr()函数到现在的时间差
 	delta_exec = now - curr->exec_start;
 	if (unlikely((s64)delta_exec <= 0))
 		return;
@@ -870,6 +871,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	curr->sum_exec_runtime += delta_exec;
 	schedstat_add(cfs_rq->exec_clock, delta_exec);
 
+	//计算该进程的vruntime
 	curr->vruntime += calc_delta_fair(delta_exec, curr);
 	update_min_vruntime(cfs_rq);
 
@@ -4162,6 +4164,7 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 	 * stays open at the end.
 	 */
 	if (initial && sched_feat(START_DEBIT))
+		//计算惩罚的虚拟时间
 		vruntime += sched_vslice(cfs_rq, se);
 
 	/* sleeps up to a single latency don't count. */
@@ -10774,17 +10777,20 @@ static void task_fork_fair(struct task_struct *p)
 	struct rq *rq = this_rq();
 	struct rq_flags rf;
 
-	rq_lock(rq, &rf);
+	rq_lock(rq, &rf);//rq上锁
 	update_rq_clock(rq);
 
+	//用于获取父进程所在的CFS就绪队列数据结构（cfs_rq）
 	cfs_rq = task_cfs_rq(current);
 	curr = cfs_rq->curr;
 	if (curr) {
-		update_curr(cfs_rq);
+		update_curr(cfs_rq);//更新进程的虚拟时间（vruntime）
 		se->vruntime = curr->vruntime;
 	}
+	//根据情况对进程虚拟时间进行一些惩罚
 	place_entity(cfs_rq, se, 1);
 
+	//
 	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
 		/*
 		 * Upon rescheduling, sched_class::put_prev_task() will place
@@ -10793,7 +10799,7 @@ static void task_fork_fair(struct task_struct *p)
 		swap(curr->vruntime, se->vruntime);
 		resched_curr(rq);
 	}
-
+	//子进程的虚拟时间需要减去min_vruntime
 	se->vruntime -= cfs_rq->min_vruntime;
 	rq_unlock(rq, &rf);
 }
