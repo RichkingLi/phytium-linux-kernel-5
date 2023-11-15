@@ -4407,16 +4407,17 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	struct sched_entity *se;
 	s64 delta;
 
-	ideal_runtime = sched_slice(cfs_rq, curr);//理想的运行时间
-	//当前调度实体的运行时间
+	ideal_runtime = sched_slice(cfs_rq, curr);//计算理想的运行时间
+	//当前调度实体的实际运行时间
 	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime;
+	//如果超过了理论运行时间，说明该进程要被调度出去
 	if (delta_exec > ideal_runtime) {
-		resched_curr(rq_of(cfs_rq));
+		resched_curr(rq_of(cfs_rq));//重新进行任务调度
 		/*
 		 * The current task ran long enough, ensure it doesn't get
 		 * re-elected due to buddy favours.
 		 */
-		clear_buddies(cfs_rq, curr);
+		clear_buddies(cfs_rq, curr);//设置cfs_rq->last为NULL
 		return;
 	}
 
@@ -4425,17 +4426,21 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	 * narrow margin doesn't have to wait for a full slice.
 	 * This also mitigates buddy induced latencies under load.
 	 */
+	//如果运行时间少于750us
 	if (delta_exec < sysctl_sched_min_granularity)
-		return;
+		return;//不用调度，返回
 
+	//从红黑树中找到最左边的调度实体
 	se = __pick_first_entity(cfs_rq);
+	//对比下一个调度实体和当前的虚拟运行时间
 	delta = curr->vruntime - se->vruntime;
 
-	if (delta < 0)
-		return;
+	if (delta < 0)//当前进程的虚拟运行时间是最少的
+		return;//不用调度，返回
 
-	if (delta > ideal_runtime)
-		resched_curr(rq_of(cfs_rq));
+	//当前进程的虚拟运行时间不是最少的，
+	if (delta > ideal_runtime)//当前进程的运行时间已经多运行了一个理论时间了
+		resched_curr(rq_of(cfs_rq));//重新进行任务调度
 }
 
 static void
@@ -4564,32 +4569,35 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 	/*
 	 * Update run-time statistics of the 'current'.
 	 */
-	update_curr(cfs_rq);
+	update_curr(cfs_rq);//更新当前进程的vruntime和就绪队列的min_vruntime
 
 	/*
 	 * Ensure that runnable average is periodically updated.
 	 */
+	//更新该进程调度实体的负载和就绪队列的负载
 	update_load_avg(cfs_rq, curr, UPDATE_TG);
-	update_cfs_group(curr);
+	update_cfs_group(curr);//根据组运行队列的当前状态重新计算se。
 
 #ifdef CONFIG_SCHED_HRTICK
 	/*
 	 * queued ticks are scheduled to match the slice, so don't bother
 	 * validating it and just reschedule.
 	 */
-	if (queued) {
-		resched_curr(rq_of(cfs_rq));
+	if (queued) {//如果是排队的调度，不需要其他验证
+		resched_curr(rq_of(cfs_rq));//重新调度当前进程后返回
 		return;
 	}
 	/*
 	 * don't let the period tick interfere with the hrtick preemption
 	 */
+	//如果有高精度定时器抢占，则返回
 	if (!sched_feat(DOUBLE_TICK) &&
 			hrtimer_active(&rq_of(cfs_rq)->hrtick_timer))
 		return;
 #endif
 
 	if (cfs_rq->nr_running > 1)
+		//检查当前进程是否需要调度
 		check_preempt_tick(cfs_rq, curr);
 }
 
@@ -10718,10 +10726,12 @@ void trigger_load_balance(struct rq *rq)
 	if (unlikely(on_null_domain(rq)))
 		return;
 
+	//如果时间到了下一次负载均衡的时候
 	if (time_after_eq(jiffies, rq->next_balance))
-		raise_softirq(SCHED_SOFTIRQ);
+		//cfs class初始化的时候把run_rebalance_domains放入SCHED_SOFTIRQ
+		raise_softirq(SCHED_SOFTIRQ);//唤醒软中断
 
-	nohz_balancer_kick(rq);
+	nohz_balancer_kick(rq);//当cpu空闲时，重新均衡所有idle cpu
 }
 
 static void rq_online_fair(struct rq *rq)
@@ -10755,8 +10765,9 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
 
+	//系统没有实现组调度机制（CONFIG_FAIR_GROUP_SCHED），只有一个se
 	for_each_sched_entity(se) {
-		cfs_rq = cfs_rq_of(se);
+		cfs_rq = cfs_rq_of(se);//根据se找到cfs_rq
 		entity_tick(cfs_rq, se, queued);
 	}
 

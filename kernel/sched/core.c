@@ -605,26 +605,31 @@ void wake_up_q(struct wake_q_head *head)
  * might also involve a cross-CPU call to trigger the scheduler on
  * the target CPU.
  */
+//重新进行任务调度
 void resched_curr(struct rq *rq)
 {
 	struct task_struct *curr = rq->curr;
 	int cpu;
 
+	//防止死锁的WARN_ON，
 	lockdep_assert_held(&rq->lock);
 
+	//通过判断TIF_NEED_RESCHED标志位查看进程是否需要调度
 	if (test_tsk_need_resched(curr))
 		return;
 
-	cpu = cpu_of(rq);
+	cpu = cpu_of(rq);//获取rq执行的cpu号
 
+	//如果进程在当前cpu上执行
 	if (cpu == smp_processor_id()) {
-		set_tsk_need_resched(curr);
-		set_preempt_need_resched();
+		set_tsk_need_resched(curr);//设置TIF_NEED_RESCHED标志
+		set_preempt_need_resched();//设置thread_info.preempt.need_resched置位
 		return;
 	}
-
-	if (set_nr_and_not_polling(curr))
-		smp_send_reschedule(cpu);
+	//如果进程在其他cpu上执行
+	
+	if (set_nr_and_not_polling(curr))//设置TIF_NEED_RESCHED标志
+		smp_send_reschedule(cpu);//使用IPI_RESCHEDULE通知其他cpu 
 	else
 		trace_sched_wake_idle_without_ipi(cpu);
 }
@@ -4023,25 +4028,33 @@ void scheduler_tick(void)
 	struct rq_flags rf;
 	unsigned long thermal_pressure;
 
+	//架构根据当前负载和功耗等因素，自动调整CPU主频和性能等级
 	arch_scale_freq_tick();
-	sched_clock_tick();
+	sched_clock_tick();//空
 
 	rq_lock(rq, &rf);
 
+	//更新当前CPU就绪队列（rq）中的时钟计数clock和clock_task成员
 	update_rq_clock(rq);
+	//获取cpu的温度压力值
 	thermal_pressure = arch_scale_thermal_pressure(cpu_of(rq));
+	//处理 CPU 温度变化情况下的平均负载更新
 	update_thermal_load_avg(rq_clock_thermal(rq), rq, thermal_pressure);
+	//调用当前调度类的task_tick方法，task_tick_fair、task_tick_rt、
+	//task_tick_dl、task_tick_stop、task_tick_idle
 	curr->sched_class->task_tick(rq, curr, 0);
-	calc_global_load_tick(rq);
-	psi_task_tick(rq);
+	calc_global_load_tick(rq);//定期更新cpu中rq的活动计数
+	psi_task_tick(rq);//空
 
 	rq_unlock(rq, &rf);
 
 	perf_event_task_tick();
 
 #ifdef CONFIG_SMP
+	//判断cpu是否处于idle，记录在idle_balance
 	rq->idle_balance = idle_cpu(cpu);
-	trigger_load_balance(rq);
+	trigger_load_balance(rq);//触发SMP负载均衡机
+制
 #endif
 }
 
