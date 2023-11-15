@@ -7499,12 +7499,15 @@ struct task_group *sched_create_group(struct task_group *parent)
 	if (!tg)
 		return ERR_PTR(-ENOMEM);
 
+	//创建CFS需要的组调度数据结构
 	if (!alloc_fair_sched_group(tg, parent))
 		goto err;
 
+	//创建realtime调度器需要的组调度数据结构
 	if (!alloc_rt_sched_group(tg, parent))
 		goto err;
 
+	//为进程组分配uclamp资源并初始化uclamp限制
 	alloc_uclamp_sched_group(tg, parent);
 
 	return tg;
@@ -7597,26 +7600,31 @@ void sched_move_task(struct task_struct *tsk)
 	rq = task_rq_lock(tsk, &rf);
 	update_rq_clock(rq);
 
-	running = task_current(rq, tsk);
-	queued = task_on_rq_queued(tsk);
+	running = task_current(rq, tsk);//判断该进程是否正在运行
+	queued = task_on_rq_queued(tsk);//判断该进程是否在就绪队列里或者正在运行中
 
-	if (queued)
+	if (queued)//如果该进程处于就绪态
+		//调用sched_class的dequeue_task让该进程暂时先退出就绪队列
 		dequeue_task(rq, tsk, queue_flags);
-	if (running)
+	if (running)//如果该进程正在运行中
+		//调用sched_class的put_prev_task将其添加回就绪队列中
 		put_prev_task(rq, tsk);
 
+	//调用sched_class的task_change_group()实现进程切换控制组
 	sched_change_group(tsk, TASK_MOVE_GROUP);
 
-	if (queued)
+	if (queued)//如果该进程处于就绪态
+		//调用sched_class的dequeue_task让该进程暂时先退出就绪队列
 		enqueue_task(rq, tsk, queue_flags);
-	if (running) {
+	if (running) {//如果该进程正在运行中
+		//调用sched_class的set_next_task()设置下一个运行的进程
 		set_next_task(rq, tsk);
 		/*
 		 * After changing group, the running task may have joined a
 		 * throttled one but it's still the running task. Trigger a
 		 * resched to make sure that task can still run.
 		 */
-		resched_curr(rq);
+		resched_curr(rq);//重新进行任务调度
 	}
 
 	task_rq_unlock(rq, tsk, &rf);
@@ -7736,8 +7744,9 @@ static void cpu_cgroup_attach(struct cgroup_taskset *tset)
 	struct task_struct *task;
 	struct cgroup_subsys_state *css;
 
+	//遍历参数tset包含的进程链表
 	cgroup_taskset_for_each(task, css, tset)
-		sched_move_task(task);
+		sched_move_task(task);//将进程迁移到组调度
 }
 
 #ifdef CONFIG_UCLAMP_TASK_GROUP

@@ -388,10 +388,10 @@ struct task_group {
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* schedulable entities of this group on each CPU */
-	struct sched_entity	**se;
+	struct sched_entity	**se;//sched_entity指针数组,长度为nr_cpu_ids
 	/* runqueue "owned" by this group on each CPU */
-	struct cfs_rq		**cfs_rq;
-	unsigned long		shares;
+	struct cfs_rq		**cfs_rq;//cfs_rq指针数组,长度为nr_cpu_ids
+	unsigned long		shares;//表示该组的权重
 
 #ifdef	CONFIG_SMP
 	/*

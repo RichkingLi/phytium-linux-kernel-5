@@ -11085,24 +11085,27 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 	if (!tg->se)
 		goto err;
 
-	tg->shares = NICE_0_LOAD;
+	tg->shares = NICE_0_LOAD;//该组的权重暂时初始化为nice值为0的进程权重
 
+	//初始化CFS中与带宽控制相关的信息，就是struct cfs_bandwidth
 	init_cfs_bandwidth(tg_cfs_bandwidth(tg));
 
-	for_each_possible_cpu(i) {
+	for_each_possible_cpu(i) {//遍历每一个cpu
+		//为每个CPU分配一个cfs_rq调度队列
 		cfs_rq = kzalloc_node(sizeof(struct cfs_rq),
 				      GFP_KERNEL, cpu_to_node(i));
 		if (!cfs_rq)
 			goto err;
-
+		//为每个CPU分配一个sched_entity调度实体
 		se = kzalloc_node(sizeof(struct sched_entity),
 				  GFP_KERNEL, cpu_to_node(i));
 		if (!se)
 			goto err_free_rq;
 
-		init_cfs_rq(cfs_rq);
+		init_cfs_rq(cfs_rq);//初始化cfs_rq
+		//初始化组调度的相关数据结构，主要是tg和se
 		init_tg_cfs_entry(tg, cfs_rq, se, i, parent->se[i]);
-		init_entity_runnable_average(se);
+		init_entity_runnable_average(se);//初始化平均负载se->avg
 	}
 
 	return 1;
