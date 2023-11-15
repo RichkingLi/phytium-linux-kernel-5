@@ -2624,7 +2624,7 @@ static inline void membarrier_switch_mm(struct rq *rq,
 					struct mm_struct *next_mm)
 {
 	int membarrier_state;
-
+	//如果切换的两个进程的mm_struct是同一个
 	if (prev_mm == next_mm)
 		return;
 

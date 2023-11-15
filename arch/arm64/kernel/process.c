@@ -544,14 +544,14 @@ __notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
 {
 	struct task_struct *last;
 
-	fpsimd_thread_switch(next);
-	tls_thread_switch(next);
-	hw_breakpoint_thread_switch(next);
-	contextidr_thread_switch(next);
-	entry_task_switch(next);
-	uao_thread_switch(next);
-	ssbs_thread_switch(next);
-	erratum_1418040_thread_switch(next);
+	fpsimd_thread_switch(next);//保存和恢复浮点寄存器状态的函数
+	tls_thread_switch(next);//保存和恢复线程本地存储（TLS）
+	hw_breakpoint_thread_switch(next);//保存和恢复硬件断点信息
+	contextidr_thread_switch(next);//恢复进程的用户空间上下文标识符CONTEXTIDR_EL1
+	entry_task_switch(next);//保存和恢复进程的 CPU 上下文信息
+	uao_thread_switch(next);//恢复进程的 UAO 寄存器的状态
+	ssbs_thread_switch(next);//恢复SSBS 寄存器,用于向量操作的特殊寄存器
+	erratum_1418040_thread_switch(next);//恢复cntkctl_el1寄存器
 
 	/*
 	 * Complete any pending TLB or cache maintenance on this CPU in case
@@ -559,17 +559,17 @@ __notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
 	 * This full barrier is also required by the membarrier system
 	 * call.
 	 */
-	dsb(ish);
+	dsb(ish);//cpu内部的数据同步指令
 
 	/*
 	 * MTE thread switching must happen after the DSB above to ensure that
 	 * any asynchronous tag check faults have been logged in the TFSR*_EL1
 	 * registers.
 	 */
-	mte_thread_switch(next);
+	mte_thread_switch(next);//更新sctlr_el1寄存器的MTE相关
 
 	/* the actual thread switch */
-	last = cpu_switch_to(prev, next);
+	last = cpu_switch_to(prev, next);//更新cpu_context记录的硬件上下文
 
 	return last;
 }

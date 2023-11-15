@@ -128,6 +128,7 @@ struct cpu_context {
 };
 
 struct thread_struct {
+	//保存进程上下文的相关信息到CPU的相关通用寄存器中
 	struct cpu_context	cpu_context;	/* cpu context */
 
 	/*
@@ -136,18 +137,18 @@ struct thread_struct {
 	 * implicit padding.
 	 */
 	struct {
-		unsigned long	tp_value;	/* TLS register */
-		unsigned long	tp2_value;
-		struct user_fpsimd_state fpsimd_state;
+		unsigned long	tp_value;	//TLS寄存器
+		unsigned long	tp2_value;	//TLS2寄存器
+		struct user_fpsimd_state fpsimd_state;//与FP和SMID相关的状态
 	} uw;
 
-	unsigned int		fpsimd_cpu;
-	void			*sve_state;	/* SVE registers, if any */
-	unsigned int		sve_vl;		/* SVE vector length */
-	unsigned int		sve_vl_onexec;	/* SVE vl after next exec */
-	unsigned long		fault_address;	/* fault info */
-	unsigned long		fault_code;	/* ESR_EL1 value */
-	struct debug_info	debug;		/* debugging */
+	unsigned int		fpsimd_cpu;//与FP和SMID相关信息
+	void			*sve_state;//SVE控制寄存器
+	unsigned int		sve_vl;	//SVE向量寄存器的长
+	unsigned int		sve_vl_onexec;//下一次执行之后SVE向量寄存器的长度
+	unsigned long		fault_address;//异常地址
+	unsigned long		fault_code;//异常错误值，从ESR_EL1中读出
+	struct debug_info	debug;//保存正在调试的信息
 #ifdef CONFIG_ARM64_PTR_AUTH
 	struct ptrauth_keys_user	keys_user;
 	struct ptrauth_keys_kernel	keys_kernel;

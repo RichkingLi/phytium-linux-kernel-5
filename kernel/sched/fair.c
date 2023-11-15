@@ -7059,6 +7059,7 @@ pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 	int new_tasks;
 
 again:
+	//如果cfs没有可运行的进程
 	if (!sched_fair_runnable(rq))
 		goto idle;
 
@@ -7085,6 +7086,7 @@ again:
 		 */
 		if (curr) {
 			if (curr->on_rq)
+				//更新任务的虚拟时间
 				update_curr(cfs_rq);
 			else
 				curr = NULL;
@@ -7104,9 +7106,9 @@ again:
 				goto simple;
 			}
 		}
-
+		//找到下一个调度实体
 		se = pick_next_entity(cfs_rq, curr);
-		cfs_rq = group_cfs_rq(se);
+		cfs_rq = group_cfs_rq(se);//通过调度实体找到cfs_rq
 	} while (cfs_rq);
 
 	p = task_of(se);

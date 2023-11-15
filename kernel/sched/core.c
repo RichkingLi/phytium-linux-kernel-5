@@ -3577,12 +3577,12 @@ prepare_task_switch(struct rq *rq, struct task_struct *prev,
 		    struct task_struct *next)
 {
 	kcov_prepare_switch(prev);
-	sched_info_switch(rq, prev, next);
+	sched_info_switch(rq, prev, next);//切换sched_info
 	perf_event_task_sched_out(prev, next);
-	rseq_preempt(prev);
+	rseq_preempt(prev);//关闭抢占
 	fire_sched_out_preempt_notifiers(prev, next);
-	prepare_task(next);
-	prepare_arch_switch(next);
+	prepare_task(next);//设置next进程描述符中的on_cpu成员为1
+	prepare_arch_switch(next);//空
 }
 
 /**
@@ -3757,6 +3757,7 @@ static __always_inline struct rq *
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next, struct rq_flags *rf)
 {
+	//为next进程做好切换的准备
 	prepare_task_switch(rq, prev, next);
 
 	/*
@@ -3764,7 +3765,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	 * combine the page table reload and the switch backend into
 	 * one hypercall.
 	 */
-	arch_start_context_switch(prev);
+	arch_start_context_switch(prev);//空
 
 	/*
 	 * kernel -> kernel   lazy + transfer active
@@ -3773,15 +3774,16 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	 * kernel ->   user   switch + mmdrop() active
 	 *   user ->   user   switch
 	 */
-	if (!next->mm) {                                // to kernel
-		enter_lazy_tlb(prev->active_mm, next);
+	if (!next->mm) {//如果切换到内核进程  // to kernel
+		enter_lazy_tlb(prev->active_mm, next);//空
 
-		next->active_mm = prev->active_mm;
-		if (prev->mm)                           // from user
-			mmgrab(prev->active_mm);
-		else
-			prev->active_mm = NULL;
-	} else {                                        // to user
+		next->active_mm = prev->active_mm;//使用旧的mm_struct
+		if (prev->mm)//如果切换出去的是用户进程 // from user
+			mmgrab(prev->active_mm);//用户进程的mm_struct使用数量+1
+		else//切换出去的是内核进程
+			prev->active_mm = NULL;//切换出去的内核进程的active_mm置空
+	} else { //如果切换到用户进程 // to user
+		//保证进程切换使用不同mm_struct时有个内存屏障
 		membarrier_switch_mm(rq, prev->active_mm, next->mm);
 		/*
 		 * sys_membarrier() requires an smp_mb() between setting
@@ -3791,12 +3793,13 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		 * case 'prev->active_mm == next->mm' through
 		 * finish_task_switch()'s mmdrop().
 		 */
+		//宏，就是switch_mm函数，切换mm_struct，包括更新ttbr0，ASID
 		switch_mm_irqs_off(prev->active_mm, next->mm, next);
 
-		if (!prev->mm) {                        // from kernel
+		if (!prev->mm) {//切换出去的是内核进程// from kernel
 			/* will mmdrop() in finish_task_switch(). */
-			rq->prev_mm = prev->active_mm;
-			prev->active_mm = NULL;
+			rq->prev_mm = prev->active_mm;//保存前任进程的内存描述符mm
+			prev->active_mm = NULL;//切换出去的内核进程的active_mm置空
 		}
 	}
 
@@ -3805,9 +3808,11 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	prepare_lock_switch(rq, next, rf);
 
 	/* Here we just switch the register state and the stack. */
+	//切换进程，从prev进程切换到next进程来运行
 	switch_to(prev, next, prev);
-	barrier();
-
+	barrier();//内存屏障
+	
+	//对旧进程进行收尾工作
 	return finish_task_switch(prev);
 }
 
@@ -4368,9 +4373,12 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * higher scheduling class, because otherwise those loose the
 	 * opportunity to pull in more work from other CPUs.
 	 */
+	//如果当前的调度类是cfs或者更低的类并且rq的进程数量等于cfs的进程数量
+	//说明该CPU就绪队列中没有rt和dl
 	if (likely(prev->sched_class <= &fair_sched_class &&
 		   rq->nr_running == rq->cfs.h_nr_running)) {
 
+		//从cfs中选择一个进程
 		p = pick_next_task_fair(rq, prev, rf);
 		if (unlikely(p == RETRY_TASK))
 			goto restart;
@@ -4385,11 +4393,12 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	}
 
 restart:
+	//调用每一个调度类的balance进行主动负载均衡
 	put_prev_task_balance(rq, prev, rf);
 
-	for_each_class(class) {
-		p = class->pick_next_task(rq);
-		if (p)
+	for_each_class(class) {//遍历每一个调度类
+		p = class->pick_next_task(rq);//调用调度类的pick_next_task
+		if (p)//找到一个可运行的进程则返回
 			return p;
 	}
 
@@ -4436,6 +4445,7 @@ restart:
  *
  * WARNING: must be called with preemption disabled!
  */
+//进程调度的核心函数，各情况的调度都是通过调用它的
 static void __sched notrace __schedule(bool preempt)
 {
 	struct task_struct *prev, *next;
@@ -4445,16 +4455,17 @@ static void __sched notrace __schedule(bool preempt)
 	struct rq *rq;
 	int cpu;
 
-	cpu = smp_processor_id();
-	rq = cpu_rq(cpu);
+	cpu = smp_processor_id();//获取当前CPU
+	rq = cpu_rq(cpu);//由当前CPU获取数据结构rq
 	prev = rq->curr;
 
+	//判断当前进程是否处于硬、软中断上下文中,如果是，则是bug
 	schedule_debug(prev, preempt);
 
 	if (sched_feat(HRTICK))
 		hrtick_clear(rq);
 
-	local_irq_disable();
+	local_irq_disable();//关闭本地CPU中断
 	rcu_note_context_switch(preempt);
 
 	/*
@@ -4472,7 +4483,7 @@ static void __sched notrace __schedule(bool preempt)
 	 * Also, the membarrier system call requires a full memory barrier
 	 * after coming from user-space, before storing to rq->curr.
 	 */
-	rq_lock(rq, &rf);
+	rq_lock(rq, &rf);//申请一个自旋锁
 	smp_mb__after_spinlock();
 
 	/* Promote REQ to ACT */
@@ -4489,10 +4500,12 @@ static void __sched notrace __schedule(bool preempt)
 	 *  - ptrace_{,un}freeze_traced() can change ->state underneath us.
 	 */
 	prev_state = prev->state;
+	//如果本次调度不是抢占调度并且当前进程不是TASK_RUNNING
 	if (!preempt && prev_state) {
+		//如果进程状态现在可以运行了
 		if (signal_pending_state(prev_state, prev)) {
 			prev->state = TASK_RUNNING;
-		} else {
+		} else {//否则进程现在还不能运行
 			prev->sched_contributes_to_load =
 				(prev_state & TASK_UNINTERRUPTIBLE) &&
 				!(prev_state & TASK_NOLOAD) &&
@@ -4512,26 +4525,31 @@ static void __sched notrace __schedule(bool preempt)
 			 *
 			 * After this, schedule() must not care about p->state any more.
 			 */
+			//把当前进程移出就绪队列
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 
-			if (prev->in_iowait) {
-				atomic_inc(&rq->nr_iowait);
-				delayacct_blkio_start();
+			if (prev->in_iowait) {//如果进程是在等待IO
+				atomic_inc(&rq->nr_iowait);//设置nr_iowait+1
+				delayacct_blkio_start();//设置current->delays->blkio_start
 			}
 		}
 		switch_count = &prev->nvcsw;
 	}
 
+	//从就绪队列中选择下一个最合适的进程
 	next = pick_next_task(rq, prev, &rf);
+	//清除当前进程的TIF_NEED_RESCHED标志位，表明它接下来不会被调度
 	clear_tsk_need_resched(prev);
+	//清除thread_info的preempt.need_resched，跳出外面while循环
 	clear_preempt_need_resched();
 
 	if (likely(prev != next)) {
-		rq->nr_switches++;
+		rq->nr_switches++;//队列的切换次数加一
 		/*
 		 * RCU users of rcu_dereference(rq->curr) may not see
 		 * changes to task_struct made by pick_next_task().
 		 */
+		//修改运行队列的rq->curr为next
 		RCU_INIT_POINTER(rq->curr, next);
 		/*
 		 * The membarrier system call requires each architecture
@@ -4547,20 +4565,20 @@ static void __sched notrace __schedule(bool preempt)
 		 * - switch_to() for arm64 (weakly-ordered, spin_unlock
 		 *   is a RELEASE barrier),
 		 */
-		++*switch_count;
+		++*switch_count;//进程的切换次数加一
 
-		psi_sched_switch(prev, next, !task_on_rq_queued(prev));
+		psi_sched_switch(prev, next, !task_on_rq_queued(prev));//空
 
 		trace_sched_switch(preempt, prev, next);
 
 		/* Also unlocks the rq: */
-		rq = context_switch(rq, prev, next, &rf);
+		rq = context_switch(rq, prev, next, &rf);//进程切换重要函数
 	} else {
 		rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
 		rq_unlock_irq(rq, &rf);
 	}
 
-	balance_callback(rq);
+	balance_callback(rq);//主动调用队列的balance_callback进行负载均衡
 }
 
 void __noreturn do_task_dead(void)

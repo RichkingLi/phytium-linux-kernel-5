@@ -428,7 +428,7 @@ struct mm_struct {
 		 * This field is close to @pgd to hopefully fit in the same
 		 * cache-line, which needs to be touched by switch_mm().
 		 */
-		atomic_t membarrier_state;
+		atomic_t membarrier_state;//内存屏障状态位，进程切换时用的
 #endif
 
 		/**

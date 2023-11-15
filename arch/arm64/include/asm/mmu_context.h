@@ -221,11 +221,11 @@ static inline void __switch_mm(struct mm_struct *next)
 	 * init_mm.pgd does not contain any user mappings and it is always
 	 * active for kernel addresses in TTBR1. Just set the reserved TTBR0.
 	 */
-	if (next == &init_mm) {
-		cpu_set_reserved_ttbr0();
+	if (next == &init_mm) {//如果mm_struct是内核内存
+		cpu_set_reserved_ttbr0();//设置TTBR0为内核页表基地址
 		return;
 	}
-
+	//检查和切换内存context，其实就是ASID和ttbr1
 	check_and_switch_context(next);
 }
 
@@ -233,8 +233,8 @@ static inline void
 switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	  struct task_struct *tsk)
 {
-	if (prev != next)
-		__switch_mm(next);
+	if (prev != next)//如果旧mm_struct和新的mm_struct不是同一个
+		__switch_mm(next);//switch_mm的核心函数
 
 	/*
 	 * Update the saved TTBR0_EL1 of the scheduled-in task as the previous
@@ -242,7 +242,7 @@ switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	 * ASID has changed since the last run (following the context switch
 	 * of another thread of the same process).
 	 */
-	update_saved_ttbr0(tsk, next);
+	update_saved_ttbr0(tsk, next);//空
 }
 
 #define deactivate_mm(tsk,mm)	do { } while (0)
