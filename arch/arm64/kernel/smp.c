@@ -735,7 +735,7 @@ void __init smp_init_cpus(void)
 	//遍历所有cpu
 	for (i = 1; i < nr_cpu_ids; i++) {
 		if (cpu_logical_map(i) != INVALID_HWID) {//cpu不是INVALID
-			if (smp_cpu_setup(i))//cpu设置成功
+			if (smp_cpu_setup(i))//cpu设置cpu_possible_bits位图
 				set_cpu_logical_map(i, INVALID_HWID);//设置cpu逻辑映射项
 		}
 	}

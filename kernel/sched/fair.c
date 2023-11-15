@@ -5994,33 +5994,35 @@ static inline int find_idlest_cpu(struct sched_domain *sd, struct task_struct *p
 				  int cpu, int prev_cpu, int sd_flag)
 {
 	int new_cpu = cpu;
-
+	//如果sd里的CPU都不在进程允许运行的CPU位图里
 	if (!cpumask_intersects(sched_domain_span(sd), p->cpus_ptr))
-		return prev_cpu;
+		return prev_cpu;//直接返回prev_cpu
 
 	/*
 	 * We need task's util for cpu_util_without, sync it up to
 	 * prev_cpu's last_update_time.
 	 */
+	//若sd_flag标志没有包含SD_BALANCE_FORK
 	if (!(sd_flag & SD_BALANCE_FORK))
-		sync_entity_load_avg(&p->se);
+		sync_entity_load_avg(&p->se);//更新系统的负载信息
 
-	while (sd) {
+	while (sd) {//从sd开始，自上而下地遍历调度域
 		struct sched_group *group;
 		struct sched_domain *tmp;
 		int weight;
 
-		if (!(sd->flags & sd_flag)) {
+		if (!(sd->flags & sd_flag)) {//sd调度域的标志不满足
 			sd = sd->child;
 			continue;
 		}
-
+		//遍历sd中所有的调度组，比较每个调度组中的量化负载
+		//来找出负载最小的一个调度组
 		group = find_idlest_group(sd, p, cpu);
 		if (!group) {
 			sd = sd->child;
 			continue;
 		}
-
+		//遍历调度组的cpu，找出一个负载最小的CPU作为最佳候选者
 		new_cpu = find_idlest_group_cpu(group, p, cpu);
 		if (new_cpu == cpu) {
 			/* Now try balancing at a lower domain level of 'cpu': */
@@ -6284,7 +6286,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 		sync_entity_load_avg(&p->se);
 		task_util = uclamp_task_util(p);
 	}
-
+	//检查target指向的CPU是否为空闲CPU
 	if ((available_idle_cpu(target) || sched_idle_cpu(target)) &&
 	    asym_fits_capacity(task_util, target))
 		return target;
@@ -6292,6 +6294,8 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	/*
 	 * If the previous CPU is cache affine and idle, don't be stupid:
 	 */
+	//target和prev两个CPU具有高速缓存的亲和性
+	//prev指向的CPU为空闲CPU
 	if (prev != target && cpus_share_cache(prev, target) &&
 	    (available_idle_cpu(prev) || sched_idle_cpu(prev)) &&
 	    asym_fits_capacity(task_util, prev))
@@ -6305,28 +6309,28 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	 * essentially a sync wakeup. An obvious example of this
 	 * pattern is IO completions.
 	 */
-	if (is_per_cpu_kthread(current) &&
-	    in_task() &&
-	    prev == smp_processor_id() &&
-	    this_rq()->nr_running <= 1 &&
+	if (is_per_cpu_kthread(current) &&	//如果是内核线程
+	    in_task() &&		//任务不在（NMI、硬、软）中断
+	    prev == smp_processor_id() &&	//处于当前cpu运行
+	    this_rq()->nr_running <= 1 &&	//rq只有1或者0个任务
 	    asym_fits_capacity(task_util, prev)) {
 		return prev;
 	}
 
 	/* Check a recently used CPU as a potential idle candidate: */
-	recent_used_cpu = p->recent_used_cpu;
-	if (recent_used_cpu != prev &&
-	    recent_used_cpu != target &&
-	    cpus_share_cache(recent_used_cpu, target) &&
-	    (available_idle_cpu(recent_used_cpu) || sched_idle_cpu(recent_used_cpu)) &&
-	    cpumask_test_cpu(p->recent_used_cpu, p->cpus_ptr) &&
+	recent_used_cpu = p->recent_used_cpu;//找到进程最近经常使用的CPU
+	if (recent_used_cpu != prev &&	//进程最近经常使用的CPU不是prev
+	    recent_used_cpu != target &&//进程最近经常使用的CPU不是target
+	    cpus_share_cache(recent_used_cpu, target) &&//target和recent_used_cpu两个CPU具有高速缓存的亲和性
+	    (available_idle_cpu(recent_used_cpu) || sched_idle_cpu(recent_used_cpu)) &&//recent_used_cpu现在是空闲CPU
+	    cpumask_test_cpu(p->recent_used_cpu, p->cpus_ptr) &&//recent_used_cpu在进程允许运行的CPU位图里
 	    asym_fits_capacity(task_util, recent_used_cpu)) {
 		/*
 		 * Replace recent_used_cpu with prev as it is a potential
 		 * candidate for the next wake:
 		 */
 		p->recent_used_cpu = prev;
-		return recent_used_cpu;
+		return recent_used_cpu;//返回进程最近经常使用的CPU
 	}
 
 	/*
@@ -6334,6 +6338,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	 * sd_asym_cpucapacity rather than sd_llc.
 	 */
 	if (static_branch_unlikely(&sched_asym_cpucapacity)) {
+		//在rcu保护下读取包含sd_asym_cpucapacity的调度域
 		sd = rcu_dereference(per_cpu(sd_asym_cpucapacity, target));
 		/*
 		 * On an asymmetric CPU capacity system where an exclusive
@@ -6344,23 +6349,24 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 		 * capacity path.
 		 */
 		if (sd) {
+			//扫描异步容量域中的空闲cpu，选择第一个适合任务的空闲cpu
 			i = select_idle_capacity(p, sd, target);
 			return ((unsigned)i < nr_cpumask_bits) ? i : target;
 		}
 	}
-
+	//在rcu保护下读取包含sd_llc的调度域
 	sd = rcu_dereference(per_cpu(sd_llc, target));
 	if (!sd)
 		return target;
-
+	//从cluser中查找空闲的CPU
 	i = select_idle_core(p, sd, target);
 	if ((unsigned)i < nr_cpumask_bits)
 		return i;
-
+	//从MC中查找空闲的CPU
 	i = select_idle_cpu(p, sd, target);
 	if ((unsigned)i < nr_cpumask_bits)
 		return i;
-
+	//从smt中查找空闲的CPU
 	i = select_idle_smt(p, sd, target);
 	if ((unsigned)i < nr_cpumask_bits)
 		return i;
@@ -6773,7 +6779,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 				return new_cpu;
 			new_cpu = prev_cpu;
 		}
-
+		//判断是否采用wakeup_cpu或者prev_cpu来唤醒这个进程，快速优化路径
 		want_affine = !wake_wide(p) && cpumask_test_cpu(cpu, p->cpus_ptr);
 	}
 
@@ -6786,6 +6792,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 		if (want_affine && (tmp->flags & SD_WAKE_AFFINE) &&
 		    cpumask_test_cpu(prev_cpu, sched_domain_span(tmp))) {
 			if (cpu != prev_cpu)
+				//选择最亲的CPU来唤醒进程
 				new_cpu = wake_affine(tmp, p, cpu, prev_cpu, sync);
 
 			sd = NULL; /* Prefer wake_affine over balance flags */
@@ -6800,10 +6807,11 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 
 	if (unlikely(sd)) {
 		/* Slow path */
+		//慢速路劲：查找一个最悠闲的CPU
 		new_cpu = find_idlest_cpu(sd, p, cpu, prev_cpu, sd_flag);
 	} else if (sd_flag & SD_BALANCE_WAKE) { /* XXX always ? */
 		/* Fast path */
-
+		//快速路径：选择一个合适的CPU
 		new_cpu = select_idle_sibling(p, prev_cpu, new_cpu);
 
 		if (want_affine)
@@ -10014,6 +10022,7 @@ void update_max_interval(void)
  *
  * Balancing parameters are set up in init_sched_domains.
  */
+//负载均衡的核心入口
 static void rebalance_domains(struct rq *rq, enum cpu_idle_type idle)
 {
 	int continue_balancing = 1;
@@ -10028,6 +10037,7 @@ static void rebalance_domains(struct rq *rq, enum cpu_idle_type idle)
 	u64 max_cost = 0;
 
 	rcu_read_lock();
+	//从当前CPU开始从下到上遍历调度域
 	for_each_domain(cpu, sd) {
 		/*
 		 * Decay the newidle max times here because this is a regular
@@ -10714,7 +10724,7 @@ static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 
 	/* normal load balance */
 	update_blocked_averages(this_rq->cpu);
-	rebalance_domains(this_rq, idle);
+	rebalance_domains(this_rq, idle);//对调度域进行负载均衡
 }
 
 /*

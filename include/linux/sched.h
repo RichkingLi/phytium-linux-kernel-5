@@ -409,14 +409,19 @@ struct util_est {
  * issues.
  */
 struct sched_avg {
-	u64				last_update_time;
-	u64				load_sum;
+	u64				last_update_time;//上一次更新的时间点，用于计算时间间隔
+	//sched_entity调度实体的load_sum：所有进程的累计工作总负载，即总时间
+	//rq或者cfs_rq调度队列的load_sum：所有进程的累计工作总负载，即时间乘权重
+	u64				load_sum;//
+	//sched_entity调度实体的runnable_sum：就绪队列里可运行进程的工作总负载，即总时间
+	//rq或者cfs_rq调度队列的runnable_sum：就绪队列里可运行进程的工作总负载，即时间乘权重
 	u64				runnable_sum;
 	u32				util_sum;
+	//存放着上一次时间采样时，不能凑成一个周期的剩余的时间
 	u32				period_contrib;
-	unsigned long			load_avg;
-	unsigned long			runnable_avg;
-	unsigned long			util_avg;
+	unsigned long			load_avg;//所有进程量化总负载
+	unsigned long			runnable_avg;//就绪队列里可运行进程量化负载
+	unsigned long			util_avg;//量化算力需求
 	struct util_est			util_est;
 } ____cacheline_aligned;
 
