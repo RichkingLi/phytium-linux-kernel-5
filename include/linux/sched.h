@@ -77,23 +77,23 @@ struct io_uring_task;
  */
 
 /* Used in tsk->state: */
-#define TASK_RUNNING			0x0000
-#define TASK_INTERRUPTIBLE		0x0001
-#define TASK_UNINTERRUPTIBLE		0x0002
-#define __TASK_STOPPED			0x0004
-#define __TASK_TRACED			0x0008
+#define TASK_RUNNING			0x0000	//处于可运行状态
+#define TASK_INTERRUPTIBLE		0x0001	//处于轻度睡眠状态
+#define TASK_UNINTERRUPTIBLE	0x0002	//处于深度睡眠状态
+#define __TASK_STOPPED			0x0004	//处于停止运行状态
+#define __TASK_TRACED			0x0008	//处于被跟踪状态
 /* Used in tsk->exit_state: */
-#define EXIT_DEAD			0x0010
-#define EXIT_ZOMBIE			0x0020
+#define EXIT_DEAD			0x0010	//表示资源回收完毕
+#define EXIT_ZOMBIE			0x0020	//表示资源未回收完毕
 #define EXIT_TRACE			(EXIT_ZOMBIE | EXIT_DEAD)
 /* Used in tsk->state again: */
-#define TASK_PARKED			0x0040
-#define TASK_DEAD			0x0080
-#define TASK_WAKEKILL			0x0100
-#define TASK_WAKING			0x0200
-#define TASK_NOLOAD			0x0400
-#define TASK_NEW			0x0800
-#define TASK_STATE_MAX			0x1000
+#define TASK_PARKED			0x0040	//处于停止状态（由于cpu拔出）
+#define TASK_DEAD			0x0080	//进程处于死亡状态
+#define TASK_WAKEKILL		0x0100	//进程等待死亡（收到kill信号）
+#define TASK_WAKING			0x0200	//进程处于唤醒其他进程的状态
+#define TASK_NOLOAD			0x0400	//表示进程负载很低（配合UNINTERRUPTIBLE使用）
+#define TASK_NEW			0x0800	//进程处于创建状态
+#define TASK_STATE_MAX		0x1000	//表示状态数量而已
 
 /* Convenience macros for the sake of set_current_state: */
 #define TASK_KILLABLE			(TASK_WAKEKILL | TASK_UNINTERRUPTIBLE)
@@ -664,12 +664,12 @@ struct task_struct {
 	 * This begins the randomizable portion of task_struct. Only
 	 * scheduling-critical items should be added above here.
 	 */
-	randomized_struct_fields_start
+	randomized_struct_fields_start//内存随机化处理开始位置
 
-	void				*stack;
+	void				*stack;//指向内核栈的指针
 	refcount_t			usage;//当前进程的引用数
 	/* Per task flags (PF_*), defined further below: */
-	unsigned int			flags;
+	unsigned int			flags;//标记，表示进程的类型
 	unsigned int			ptrace;
 
 #ifdef CONFIG_SMP
@@ -707,7 +707,7 @@ struct task_struct {
 	struct sched_entity		se;//普通进程调度器实体
 	struct sched_rt_entity		rt;//实时进程调度器实体
 #ifdef CONFIG_CGROUP_SCHED
-	struct task_group		*sched_task_group;
+	struct task_group		*sched_task_group;//进程所在调度组
 #endif
 	struct sched_dl_entity		dl;//dl进程调度器实体
 
@@ -728,7 +728,7 @@ struct task_struct {
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* List of struct preempt_notifier: */
-	struct hlist_head		preempt_notifiers;
+	struct hlist_head		preempt_notifiers;//系统的抢占通知器
 #endif
 
 #ifdef CONFIG_BLK_DEV_IO_TRACE
@@ -736,8 +736,8 @@ struct task_struct {
 #endif
 
 	unsigned int			policy;//进程的调度策略
-	int				nr_cpus_allowed;
-	const cpumask_t			*cpus_ptr;
+	int				nr_cpus_allowed;//该进程允许使用的cpu的数量
+	const cpumask_t			*cpus_ptr;//绑核心的时候允许在哪个cpu上运行
 	cpumask_t			cpus_mask;//进程允许运行的CPU位图
 
 #ifdef CONFIG_PREEMPT_RCU
@@ -766,7 +766,7 @@ struct task_struct {
 	//记录与进程调度相关的信息，包括进程的运行状态、CPU 时间和调度时间
 	struct sched_info		sched_info;
 
-	struct list_head		tasks;
+	struct list_head		tasks;//进程链表
 #ifdef CONFIG_SMP
 	//保存当前进程等待被调度的 CPU 的列表
 	struct plist_node		pushable_tasks;
@@ -783,9 +783,9 @@ struct task_struct {
 #ifdef SPLIT_RSS_COUNTING
 	struct task_rss_stat		rss_stat;
 #endif
-	int				exit_state;
-	int				exit_code;
-	int				exit_signal;
+	int				exit_state;//进程的退出状态，
+	int				exit_code;//进程的终止代号
+	int				exit_signal;//进程接受到的退出信号
 	/* The signal sent when the parent dies: */
 	int				pdeath_signal;//保存父进程死亡发出来的信号
 	/* JOBCTL_*, siglock protected: */
@@ -852,8 +852,8 @@ struct task_struct {
 
 	struct restart_block		restart_block;
 
-	pid_t				pid;
-	pid_t				tgid;
+	pid_t				pid;//表示该进程的进程号
+	pid_t				tgid;//表示该进程的线程组号
 
 #ifdef CONFIG_STACKPROTECTOR
 	/* Canary value for the -fstack-protector GCC feature: */
@@ -866,17 +866,19 @@ struct task_struct {
 	 */
 
 	/* Real parent process: */
+	//指向创建进程的进程描述符（生父进程），如果生父进程不存在了，指向进程1（systemd进程）
 	struct task_struct __rcu	*real_parent;
 
 	/* Recipient of SIGCHLD, wait4() reports: */
+	//指向进程的当前父进程，一般和real_parent一致，只有在调试的时候指向调试的进程
 	struct task_struct __rcu	*parent;
 
 	/*
 	 * Children/sibling form the list of natural children:
 	 */
-	struct list_head		children;
-	struct list_head		sibling;
-	struct task_struct		*group_leader;
+	struct list_head		children;//指向该进程的子进程链表
+	struct list_head		sibling;//指向进程的兄弟进程
+	struct task_struct		*group_leader;//一般是指向自己，如果该进程是用户创建的线程，则指向创建线程的进程
 
 	/*
 	 * 'ptraced' is the list of tasks this task is using ptrace() on.
@@ -960,42 +962,42 @@ struct task_struct {
 	 * - access it with [gs]et_task_comm()
 	 * - lock it with task_lock()
 	 */
-	char				comm[TASK_COMM_LEN];
+	char				comm[TASK_COMM_LEN];//进程的名称
 
 	struct nameidata		*nameidata;
 
 #ifdef CONFIG_SYSVIPC
-	struct sysv_sem			sysvsem;
-	struct sysv_shm			sysvshm;
+	struct sysv_sem			sysvsem;//记录进程的信号量
+	struct sysv_shm			sysvshm;//记录进程的共享内存
 #endif
 #ifdef CONFIG_DETECT_HUNG_TASK
 	unsigned long			last_switch_count;//进程调度次数
 	unsigned long			last_switch_time;//进程被最近调度后的时间戳
 #endif
 	/* Filesystem information: */
-	struct fs_struct		*fs;
+	struct fs_struct		*fs;//指向进程的文件系统信息
 
 	/* Open file information: */
-	struct files_struct		*files;
+	struct files_struct		*files;//记录进程打开的文件
 
 #ifdef CONFIG_IO_URING
 	struct io_uring_task		*io_uring;//用于存储与进程相关的异步I/O请求的信息
 #endif
 
 	/* Namespaces: */
-	struct nsproxy			*nsproxy;
+	struct nsproxy			*nsproxy;//命名空间
 
 	/* Signal handlers: */
-	struct signal_struct		*signal;
-	struct sighand_struct __rcu		*sighand;
-	sigset_t			blocked;
-	sigset_t			real_blocked;
+	struct signal_struct		*signal;//指向进程的信号描述符
+	struct sighand_struct __rcu		*sighand;//指向进程的信号处理程序
+	sigset_t			blocked;//表示被阻塞信号的掩码
+	sigset_t			real_blocked;//临时掩码
 	/* Restored if set_restore_sigmask() was used: */
-	sigset_t			saved_sigmask;
-	struct sigpending		pending;
-	unsigned long			sas_ss_sp;
-	size_t				sas_ss_size;
-	unsigned int			sas_ss_flags;
+	sigset_t			saved_sigmask;//使用了set_restore_sigmask()则恢复的掩码
+	struct sigpending		pending;//存放私有挂起信号的数据结构
+	unsigned long			sas_ss_sp;//信号处理程序备用堆栈的地址
+	size_t				sas_ss_size;//堆栈的大小
+	unsigned int			sas_ss_flags;//堆栈的标志位
 
 	struct callback_head		*task_works;//用于异步IO的回任务链表
 
@@ -1375,7 +1377,7 @@ struct task_struct {
 	 * New fields for task_struct should be added above here, so that
 	 * they are included in the randomized portion of task_struct.
 	 */
-	randomized_struct_fields_end
+	randomized_struct_fields_end //内存随机化处理结束标志
 
 	/* CPU-specific state of this task: */
 	struct thread_struct		thread;//用于描述线程状态的的数据结构

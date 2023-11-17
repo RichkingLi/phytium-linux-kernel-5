@@ -1034,12 +1034,12 @@ NOKPROBE(cpu_switch_to)
  * This is how we return from a fork.
  */
 SYM_CODE_START(ret_from_fork)
-	bl	schedule_tail
-	cbz	x19, 1f				// not a kernel thread
+	bl	schedule_tail	//对prev进程做收尾工作
+	cbz	x19, 1f		//用户进程跳到1		// not a kernel thread
 	mov	x0, x20
-	blr	x19
+	blr	x19		//异常返回，跳到内核线程回调函数
 1:	get_current_task tsk
-	b	ret_to_user
+	b	ret_to_user	//调用函数返回用户态
 SYM_CODE_END(ret_from_fork)
 NOKPROBE(ret_from_fork)
 

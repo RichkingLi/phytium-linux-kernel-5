@@ -439,8 +439,8 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		p->thread.cpu_context.x20 = stk_sz;
 	}
 	//设置子进程的进程硬件上下文（struct cpu_context）中pc和sp成员的值
-	p->thread.cpu_context.pc = (unsigned long)ret_from_fork;
-	p->thread.cpu_context.sp = (unsigned long)childregs;
+	p->thread.cpu_context.pc = (unsigned long)ret_from_fork;//新进程内核开始运行的地方
+	p->thread.cpu_context.sp = (unsigned long)childregs;//新进程的内核栈
 
 	ptrace_hw_copy_thread(p);
 
