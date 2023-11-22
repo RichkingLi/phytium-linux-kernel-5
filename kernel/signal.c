@@ -1920,7 +1920,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	WARN_ON_ONCE(!tsk->ptrace &&
 	       (tsk->group_leader != tsk || !thread_group_empty(tsk)));
 
-	/* Wake up all pidfd waiters */
+	//获取进程描述符的thread_pid成员，唤醒所有的wait_pidfd
 	do_notify_pidfd(tsk);
 
 	if (sig != SIGCHLD) {
@@ -1931,7 +1931,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 		if (tsk->parent_exec_id != READ_ONCE(tsk->parent->self_exec_id))
 			sig = SIGCHLD;
 	}
-
+	//填写info信息
 	clear_siginfo(&info);
 	info.si_signo = sig;
 	info.si_errno = 0;
@@ -1947,15 +1947,17 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	 * correct to rely on this
 	 */
 	rcu_read_lock();
+	//填写发送者的pid和uid
 	info.si_pid = task_pid_nr_ns(tsk, task_active_pid_ns(tsk->parent));
 	info.si_uid = from_kuid_munged(task_cred_xxx(tsk->parent, user_ns),
 				       task_uid(tsk));
 	rcu_read_unlock();
 
-	task_cputime(tsk, &utime, &stime);
+	task_cputime(tsk, &utime, &stime);//获取进程的utime和stime
+	//填写用户时间和系统时间
 	info.si_utime = nsec_to_clock_t(utime + tsk->signal->utime);
 	info.si_stime = nsec_to_clock_t(stime + tsk->signal->stime);
-
+	//填写退出状态和退出码
 	info.si_status = tsk->exit_code & 0x7f;
 	if (tsk->exit_code & 0x80)
 		info.si_code = CLD_DUMPED;
@@ -1965,10 +1967,12 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 		info.si_code = CLD_EXITED;
 		info.si_status = tsk->exit_code >> 8;
 	}
-
+	//找到父进程的信号处理程序
 	psig = tsk->parent->sighand;
 	spin_lock_irqsave(&psig->siglock, flags);
+	//如果没有被跟踪，发送的是子进程退出信号，
 	if (!tsk->ptrace && sig == SIGCHLD &&
+		//父进程没有SIGCHLD信号的处理程序或者父进程没有调用wait
 	    (psig->action[SIGCHLD-1].sa.sa_handler == SIG_IGN ||
 	     (psig->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDWAIT))) {
 		/*
@@ -1987,16 +1991,18 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 		 * it, just use SIG_IGN instead).
 		 */
 		autoreap = true;
+		//如果父进程没有SIGCHLD信号的处理程序，说明不关注该信号
 		if (psig->action[SIGCHLD-1].sa.sa_handler == SIG_IGN)
-			sig = 0;
+			sig = 0;//信号设置为0,没有信号的意思
 	}
 	/*
 	 * Send with __send_signal as si_pid and si_uid are in the
 	 * parent's namespaces.
 	 */
-	if (valid_signal(sig) && sig)
+	if (valid_signal(sig) && sig)//如果信号有效且不为0
+		//发送信号sig给父进程
 		__send_signal(sig, &info, tsk->parent, PIDTYPE_TGID, false);
-	__wake_up_parent(tsk, tsk->parent);
+	__wake_up_parent(tsk, tsk->parent);//唤醒阻塞在等待队列的父进程
 	spin_unlock_irqrestore(&psig->siglock, flags);
 
 	return autoreap;

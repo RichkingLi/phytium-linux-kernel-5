@@ -383,6 +383,7 @@ asmlinkage void ret_from_fork(void) asm("ret_from_fork");
 int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		unsigned long stk_sz, struct task_struct *p, unsigned long tls)
 {
+	//找到进程的栈底，这里保存了发生异常时寄存器的信息
 	struct pt_regs *childregs = task_pt_regs(p);
 
     //清空cpu_context

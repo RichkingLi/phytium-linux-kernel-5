@@ -1697,17 +1697,21 @@ static inline void check_class_changed(struct rq *rq, struct task_struct *p,
 
 void check_preempt_curr(struct rq *rq, struct task_struct *p, int flags)
 {
+	//如果父子进程的调度类相同
 	if (p->sched_class == rq->curr->sched_class)
+		//调用调度类的check_preempt_curr函数
 		rq->curr->sched_class->check_preempt_curr(rq, p, flags);
+	//如果子进程的调度类比父进程的调度类大
 	else if (p->sched_class > rq->curr->sched_class)
-		resched_curr(rq);
+		resched_curr(rq);//说明需要重新调度
 
 	/*
 	 * A queue event has occurred, and we're going to schedule.  In
 	 * this case, we can save a useless back to back clock update.
 	 */
+	//如果父进程在队列中并且父进程需要调度
 	if (task_on_rq_queued(rq->curr) && test_tsk_need_resched(rq->curr))
-		rq_clock_skip_update(rq);
+		rq_clock_skip_update(rq);//需要更新CPU运行队列的时钟
 }
 
 #ifdef CONFIG_SMP
@@ -3382,9 +3386,9 @@ void wake_up_new_task(struct task_struct *p)
 	//设置子进程将来要在哪个CPU上运行
 	__set_task_cpu(p, select_task_rq(p, task_cpu(p), SD_BALANCE_FORK, 0));
 #endif
-	rq = __task_rq_lock(p, &rf);
-	update_rq_clock(rq);
-	post_init_entity_util_avg(p);
+	rq = __task_rq_lock(p, &rf);//锁住进程所在的运行队列
+	update_rq_clock(rq);//更新运行队列中的计时器
+	post_init_entity_util_avg(p);//根据调度队列的util_avg初始化调度实体的util_avg
 
 	//调用enqueue_task把子进程放入就绪队列并且设置状态（on_rq）
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
@@ -4597,16 +4601,16 @@ static void __sched notrace __schedule(bool preempt)
 void __noreturn do_task_dead(void)
 {
 	/* Causes final put_task_struct in finish_task_switch(): */
-	set_special_state(TASK_DEAD);
+	set_special_state(TASK_DEAD);//设置进程的状态为死亡
 
 	/* Tell freezer to ignore us: */
-	current->flags |= PF_NOFREEZE;
+	current->flags |= PF_NOFREEZE;//设置PF_NOFREEZE，表示进程不可以冻结
 
-	__schedule(false);
-	BUG();
+	__schedule(false);//调用函数__schedule 以调度进程
+	BUG();//函数不会执行到这里，如果运行到这里，说明是一个BUG
 
 	/* Avoid "noreturn function does return" - but don't continue if BUG() is a NOP: */
-	for (;;)
+	for (;;)//死循环，避免函数退出
 		cpu_relax();
 }
 

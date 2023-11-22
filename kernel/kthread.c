@@ -653,30 +653,33 @@ int kthreadd(void *unused)
 	struct task_struct *tsk = current;
 
 	/* Setup a clean context for our children to inherit. */
-	set_task_comm(tsk, "kthreadd");
-	ignore_signals(tsk);
+	set_task_comm(tsk, "kthreadd");//把本进程的名字改为kthreadd
+	ignore_signals(tsk);//屏蔽进程的所有信号
+	//设置进程的 CPU 亲和性，去除了ISOLATION的cpu
 	set_cpus_allowed_ptr(tsk, housekeeping_cpumask(HK_FLAG_KTHREAD));
+	//设置进程的可用NUMA节点
 	set_mems_allowed(node_states[N_MEMORY]);
 
-	current->flags |= PF_NOFREEZE;
-	cgroup_init_kthreadd();
+	current->flags |= PF_NOFREEZE;//设置标志位表示这个进程不可以冻结
+	cgroup_init_kthreadd();//禁止用户发起cgroup迁移
 
-	for (;;) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (list_empty(&kthread_create_list))
-			schedule();
-		__set_current_state(TASK_RUNNING);
+	for (;;) {//死循环
+		set_current_state(TASK_INTERRUPTIBLE);//设置当前进程为轻度睡眠
+		if (list_empty(&kthread_create_list))//如果链表为空
+			schedule();//主动发起调度
+		__set_current_state(TASK_RUNNING);//设置当前进程为可运行状态
 
 		spin_lock(&kthread_create_lock);
+		//当kthread_create_list不为空的时候进入while循环
 		while (!list_empty(&kthread_create_list)) {
 			struct kthread_create_info *create;
-
+			//从kthread_create_list链表中取出一个create
 			create = list_entry(kthread_create_list.next,
 					    struct kthread_create_info, list);
-			list_del_init(&create->list);
+			list_del_init(&create->list);//把create踢出链表
 			spin_unlock(&kthread_create_lock);
 
-			create_kthread(create);
+			create_kthread(create);//根据create创建进程
 
 			spin_lock(&kthread_create_lock);
 		}

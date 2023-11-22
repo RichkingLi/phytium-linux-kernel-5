@@ -887,14 +887,14 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	stack = alloc_thread_stack_node(tsk, node);
 	if (!stack)
 		goto free_tsk;
-
+	//将一个内核线程的内存栈大小计入内存控制组的限额中
 	if (memcg_charge_kernel_stack(tsk))
 		goto free_stack;
 
-	//复制父进程的内核栈所在的内存区域，也就是stack_vm_area，
+	//复制父进程的内核栈所在的vma，也就是stack_vm_area，
 	stack_vm_area = task_stack_vm_area(tsk);
 
-	//父进程的进程描述符内容直接复制到新进程的进程描述符中
+	//处理进程描述符体系结构相关部分,arm64更新了thread_info.flags
 	err = arch_dup_task_struct(tsk, orig);
 
 	/*
