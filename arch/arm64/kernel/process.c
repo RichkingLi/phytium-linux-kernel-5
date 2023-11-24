@@ -570,7 +570,8 @@ __notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
 	mte_thread_switch(next);//更新sctlr_el1寄存器的MTE相关
 
 	/* the actual thread switch */
-	last = cpu_switch_to(prev, next);//更新cpu_context记录的硬件上下文
+	//更新cpu_context记录的硬件上下文，主要是切换通用寄存器
+	last = cpu_switch_to(prev, next);
 
 	return last;
 }

@@ -170,7 +170,7 @@ static u64 new_context(struct mm_struct *mm)
 		 * If our current ASID was active during a rollover, we
 		 * can continue to use it and this was just a false alarm.
 		 */
-		//进程的 ASID 是保留 ASID
+		//遍历全部cpu，如果asid等于保留的asid中的一个
 		if (check_update_reserved_asid(asid, newasid))
 			return newasid;//继续使用原来的 ASID ，只需更新 ASID 版本号
 
@@ -244,7 +244,7 @@ void check_and_switch_context(struct mm_struct *mm)
 	//获取cpu的ASID
 	old_active_asid = atomic64_read(this_cpu_ptr(&active_asids));
 	//如果进程和cpu的ASID都有效，进程的ASID版本号和cpu的ASID版本号相同
-	//调用函数 atomic64_xchg_relaxed 把当前cpu的 active_asids 设置成进程的 ASID
+	//再次读取的ASID和刚刚读取的比较，如果相同则赋值给asid
 	if (old_active_asid && asid_gen_match(asid) &&
 	    atomic64_cmpxchg_relaxed(this_cpu_ptr(&active_asids),
 				     old_active_asid, asid))
@@ -275,8 +275,8 @@ switch_mm_fastpath:
 	 * Defer TTBR0_EL1 setting for user threads to uaccess_enable() when
 	 * emulating PAN.
 	 */
-	if (!system_uses_ttbr0_pan())//如果不需要通过切换寄存器 TTBR0_EL1 仿真 PAN 特性
-		cpu_switch_mm(mm->pgd, mm);//设置寄存器 TTBR0_EL1
+	if (!system_uses_ttbr0_pan())//如果没有开启PAN功能
+		cpu_switch_mm(mm->pgd, mm);//更新ttbr0和ttbr1寄存器
 }
 
 unsigned long arm64_mm_context_get(struct mm_struct *mm)

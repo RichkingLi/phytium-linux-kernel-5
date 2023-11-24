@@ -3586,7 +3586,7 @@ prepare_task_switch(struct rq *rq, struct task_struct *prev,
 		    struct task_struct *next)
 {
 	kcov_prepare_switch(prev);
-	sched_info_switch(rq, prev, next);//切换sched_info
+	sched_info_switch(rq, prev, next);//更新调度器统计信息的
 	perf_event_task_sched_out(prev, next);
 	rseq_preempt(prev);//关闭抢占
 	fire_sched_out_preempt_notifiers(prev, next);
@@ -3636,7 +3636,7 @@ static struct rq *finish_task_switch(struct task_struct *prev)
 		      current->comm, current->pid, preempt_count()))
 		preempt_count_set(FORK_PREEMPT_COUNT);
 
-	rq->prev_mm = NULL;
+	rq->prev_mm = NULL;//把 rq->prev_mm 设置为空指针
 
 	/*
 	 * A task struct has one reference for the use as "current".
@@ -3650,11 +3650,12 @@ static struct rq *finish_task_switch(struct task_struct *prev)
 	 * transition, resulting in a double drop.
 	 */
 	prev_state = prev->state;
-	vtime_task_switch(prev);
+	vtime_task_switch(prev);//计算进程 prev 的时间统计
 	perf_event_task_sched_in(prev, current);
+	//把prev->on_cpu设置为0，表示进程prev没有在处理器上运行
 	finish_task(prev);
 	finish_lock_switch(rq);
-	finish_arch_post_lock_switch();
+	finish_arch_post_lock_switch();//执行处理器架构特定的清理工作，这里为空
 	kcov_finish_switch(current);
 
 	fire_sched_in_preempt_notifiers(current);
@@ -3670,27 +3671,32 @@ static struct rq *finish_task_switch(struct task_struct *prev)
 	 *   provided by mmdrop(),
 	 * - a sync_core for SYNC_CORE.
 	 */
-	if (mm) {
-		membarrier_mm_sync_core_before_usermode(mm);
+	if (mm) {//如果进程 prev 是内核线程
+		membarrier_mm_sync_core_before_usermode(mm);//提供内存屏障
+		//内存描述符的引用计数减1，如果引用计数减到0，那么释放内存描述符
 		mmdrop(mm);
 	}
+	//如果进程prev的状态是TASK_DEAD，即进程主动退出或者被终止
 	if (unlikely(prev_state == TASK_DEAD)) {
+		//如果存在进程prev所属调度类的task_dead方法
 		if (prev->sched_class->task_dead)
-			prev->sched_class->task_dead(prev);
+			prev->sched_class->task_dead(prev);//调用它
 
 		/*
 		 * Remove function-return probe instances associated with this
 		 * task and put them back on the free list.
 		 */
+		//删除与此任务关联的函数返回探测实例，并将它们放回空闲列表中。
 		kprobe_flush_task(prev);
 
 		/* Task is done with its stack. */
+		//进程的栈内存使用计数减一，如果减到0，释放它
 		put_task_stack(prev);
-
+		//释放进程描述符的引用计数，然后将其标记为用户级别延迟释放
 		put_task_struct_rcu_user(prev);
 	}
 
-	tick_nohz_task_switch();
+	tick_nohz_task_switch();//检查现在是否在非活动状态，如果是则启用nohz
 	return rq;
 }
 
@@ -3792,7 +3798,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		else//切换出去的是内核进程
 			prev->active_mm = NULL;//切换出去的内核进程的active_mm置空
 	} else { //如果切换到用户进程 // to user
-		//保证进程切换使用不同mm_struct时有个内存屏障
+		//保证进程切换使用不同mm_struct前有个内存屏障
 		membarrier_switch_mm(rq, prev->active_mm, next->mm);
 		/*
 		 * sys_membarrier() requires an smp_mb() between setting
@@ -4483,6 +4489,7 @@ static void __sched notrace __schedule(bool preempt)
 		hrtick_clear(rq);
 
 	local_irq_disable();//关闭本地CPU中断
+	//通知 RCU 子系统当前线程发生了上下文切换
 	rcu_note_context_switch(preempt);
 
 	/*
@@ -4501,11 +4508,11 @@ static void __sched notrace __schedule(bool preempt)
 	 * after coming from user-space, before storing to rq->curr.
 	 */
 	rq_lock(rq, &rf);//申请一个自旋锁
-	smp_mb__after_spinlock();
+	smp_mb__after_spinlock();//内存屏障
 
 	/* Promote REQ to ACT */
 	rq->clock_update_flags <<= 1;
-	update_rq_clock(rq);
+	update_rq_clock(rq);//更新rq->clock 
 
 	switch_count = &prev->nivcsw;
 
@@ -4519,17 +4526,18 @@ static void __sched notrace __schedule(bool preempt)
 	prev_state = prev->state;
 	//如果本次调度不是抢占调度并且当前进程不是TASK_RUNNING
 	if (!preempt && prev_state) {
-		//如果进程状态现在可以运行了
+		//如果当前进程有可处理的信号
 		if (signal_pending_state(prev_state, prev)) {
-			prev->state = TASK_RUNNING;
+			prev->state = TASK_RUNNING;//设置为可运行
 		} else {//否则进程现在还不能运行
+			//如果任务在睡眠中则设置sched_contributes_to_load为1
 			prev->sched_contributes_to_load =
 				(prev_state & TASK_UNINTERRUPTIBLE) &&
 				!(prev_state & TASK_NOLOAD) &&
 				!(prev->flags & PF_FROZEN);
 
 			if (prev->sched_contributes_to_load)
-				rq->nr_uninterruptible++;
+				rq->nr_uninterruptible++;//nr_uninterruptible状态数量加一
 
 			/*
 			 * __schedule()			ttwu()
@@ -4545,22 +4553,22 @@ static void __sched notrace __schedule(bool preempt)
 			//把当前进程移出就绪队列
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 
-			if (prev->in_iowait) {//如果进程是在等待IO
+			if (prev->in_iowait) {//如果当前进程是在等待IO
 				atomic_inc(&rq->nr_iowait);//设置nr_iowait+1
 				delayacct_blkio_start();//设置current->delays->blkio_start
 			}
 		}
-		switch_count = &prev->nvcsw;
+		switch_count = &prev->nvcsw;//主动调度次数加一
 	}
-
+	
 	//从就绪队列中选择下一个最合适的进程
 	next = pick_next_task(rq, prev, &rf);
-	//清除当前进程的TIF_NEED_RESCHED标志位，表明它接下来不会被调度
+	//清除当前进程的TIF_NEED_RESCHED标志位
 	clear_tsk_need_resched(prev);
-	//清除thread_info的preempt.need_resched，跳出外面while循环
+	//清除thread_info的preempt.need_resched
 	clear_preempt_need_resched();
 
-	if (likely(prev != next)) {
+	if (likely(prev != next)) {//下一个运行进程不是当前进程
 		rq->nr_switches++;//队列的切换次数加一
 		/*
 		 * RCU users of rcu_dereference(rq->curr) may not see
@@ -4590,7 +4598,7 @@ static void __sched notrace __schedule(bool preempt)
 
 		/* Also unlocks the rq: */
 		rq = context_switch(rq, prev, next, &rf);//进程切换重要函数
-	} else {
+	} else {//下一个运行进程就是当前进程
 		rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
 		rq_unlock_irq(rq, &rf);
 	}
@@ -4664,13 +4672,13 @@ asmlinkage __visible void __sched schedule(void)
 {
 	struct task_struct *tsk = current;
 
-	sched_submit_work(tsk);
+	sched_submit_work(tsk);//将进程提交到就绪队列中
 	do {
-		preempt_disable();
-		__schedule(false);
-		sched_preempt_enable_no_resched();
-	} while (need_resched());
-	sched_update_worker(tsk);
+		preempt_disable();//关闭抢占
+		__schedule(false);//进行非抢占的调度
+		sched_preempt_enable_no_resched();//开启抢占
+	} while (need_resched());//抢占标志位TIF_NEED_RESCHED置位了
+	sched_update_worker(tsk);//更新调度信息，用于将工作线程迁移到cpu上之后
 }
 EXPORT_SYMBOL(schedule);
 

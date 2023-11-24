@@ -4583,7 +4583,7 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 	 * queued ticks are scheduled to match the slice, so don't bother
 	 * validating it and just reschedule.
 	 */
-	if (queued) {//如果是排队的调度，不需要其他验证
+	if (queued) {//如果是时间片到了的调度，不需要其他验证
 		resched_curr(rq_of(cfs_rq));//重新调度当前进程后返回
 		return;
 	}
@@ -10775,17 +10775,18 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
 
-	//系统没有实现组调度机制（CONFIG_FAIR_GROUP_SCHED），只有一个se
+	//从当前进程到根任务组的每级公平调度实体的遍历
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);//根据se找到cfs_rq
-		entity_tick(cfs_rq, se, queued);
+		entity_tick(cfs_rq, se, queued);//更新进程的调度实体的状态
 	}
 
+	//如果系统开启了 NUMA 内存区域均衡功能
 	if (static_branch_unlikely(&sched_numa_balancing))
-		task_tick_numa(rq, curr);
+		task_tick_numa(rq, curr);//在NUMA架构下内存均衡的调度
 
-	update_misfit_status(curr, rq);
-	update_overutilized_status(task_rq(curr));
+	update_misfit_status(curr, rq);//跟新rq的misfit_task_load成员，表示不适应度
+	update_overutilized_status(task_rq(curr));//更新cpu有没有过度利用的状态
 }
 
 /*

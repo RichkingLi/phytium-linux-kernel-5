@@ -978,7 +978,7 @@ struct rq {
 	struct callback_head	*balance_callback;//指向系统中的一个平衡回调函数
 
 	unsigned char		nohz_idle_balance;//表示系统是否启用 CPU 无挂起时负载均衡
-	unsigned char		idle_balance;//表示系统是否启用 CPU 空闲时负载均衡
+	unsigned char		idle_balance;//用于记录最后一次在idle进程队列和其他队列之间的平衡时间戳
 
 	unsigned long		misfit_task_load;//记录不适合进程（实际算力大于CPU额定算力的80%）的量化负载
 
@@ -1026,7 +1026,7 @@ struct rq {
 #ifdef CONFIG_SMP
 	call_single_data_t	hrtick_csd;
 #endif
-	struct hrtimer		hrtick_timer;
+	struct hrtimer		hrtick_timer;//时间片的定时器
 	ktime_t 		hrtick_time;
 #endif
 
