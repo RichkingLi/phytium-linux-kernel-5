@@ -102,29 +102,29 @@
  * SPARSEMEM_EXTREME with !SPARSEMEM_VMEMMAP).
  */
 enum pageflags {
-	PG_locked,		/* Page is locked. Don't touch. */
-	PG_referenced,
-	PG_uptodate,
-	PG_dirty,
-	PG_lru,
-	PG_active,
-	PG_workingset,
-	PG_waiters,		/* Page has waiters, check its waitqueue. Must be bit #7 and in the same byte as "PG_locked" */
-	PG_error,
-	PG_slab,
-	PG_owner_priv_1,	/* Owner use. If pagecache, fs may use*/
-	PG_arch_1,
-	PG_reserved,
-	PG_private,		/* If pagecache, has fs-private data */
-	PG_private_2,		/* If pagecache, has fs aux data */
-	PG_writeback,		/* Page is under writeback */
-	PG_head,		/* A head page */
-	PG_mappedtodisk,	/* Has blocks allocated on-disk */
-	PG_reclaim,		/* To be reclaimed asap */
-	PG_swapbacked,		/* Page is backed by RAM/swap */
-	PG_unevictable,		/* Page is "unevictable"  */
+	PG_locked,		//表示页面已经上锁了
+	PG_referenced,  //表示页面已经被引用
+	PG_uptodate,    //表示页面的数据已经从块设备成功读取
+	PG_dirty,       //表示页面内容发生改变，这个页面为脏页
+	PG_lru,         //表示页面在LRU链表中
+	PG_active,      //表示页面在活跃链表中
+	PG_workingset,  //
+	PG_waiters,		//表示有进程在等待这个页面
+	PG_error,       //页面操作过程中发生I/O错误时会设置该位
+	PG_slab,        //表示页面用于slab分配器
+	PG_owner_priv_1,//
+	PG_arch_1,      //架构相关的位标志，用于特定架构的内存管理
+	PG_reserved,    //页面被保留，用于特定的用途，如文件系统的私有数据结构
+	PG_private,		//
+	PG_private_2,	//
+	PG_writeback,	//表示页面的内容正在向块设备回写
+	PG_head,		//
+	PG_mappedtodisk,//表示页面被映射到磁盘上
+	PG_reclaim,		//表示这个页面马上要被回收
+	PG_swapbacked,	//页面已经被交换到磁盘，并且已经被标记为需要回写
+	PG_unevictable,	//表示页面不可被回收
 #ifdef CONFIG_MMU
-	PG_mlocked,		/* Page is vma mlocked */
+	PG_mlocked,		//表示页面对应的VMA处于mlocked状态
 #endif
 #ifdef CONFIG_ARCH_USES_PG_UNCACHED
 	PG_uncached,		/* Page has been mapped as uncached */
@@ -137,7 +137,7 @@ enum pageflags {
 	PG_idle,
 #endif
 #ifdef CONFIG_64BIT
-	PG_arch_2,
+	PG_arch_2,		//架构相关的位标志，用于特定架构的内存管理
 #endif
 	__NR_PAGEFLAGS,
 
@@ -145,7 +145,7 @@ enum pageflags {
 	PG_checked = PG_owner_priv_1,
 
 	/* SwapBacked */
-	PG_swapcache = PG_owner_priv_1,	/* Swap page: swp_entry_t in private */
+	PG_swapcache = PG_owner_priv_1,//表示页面处于交换缓存中
 
 	/* Two page bits are conscripted by FS-Cache to maintain local caching
 	 * state.  These bits are set on pages belonging to the netfs's inodes
