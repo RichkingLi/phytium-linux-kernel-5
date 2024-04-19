@@ -95,6 +95,7 @@ static phys_addr_t __init early_pgtable_alloc(int shift)
 	phys_addr_t phys;
 	void *ptr;
 
+	//使用的 memblock 分配器在物理内存中分配一块指定大小的内存区域
 	phys = memblock_phys_alloc(PAGE_SIZE, PAGE_SIZE);
 	if (!phys)
 		panic("Failed to allocate page table page\n");
@@ -104,17 +105,17 @@ static phys_addr_t __init early_pgtable_alloc(int shift)
 	 * slot will be free, so we can (ab)use the FIX_PTE slot to initialise
 	 * any level of table.
 	 */
-	ptr = pte_set_fixmap(phys);
+	ptr = pte_set_fixmap(phys);//建立phys的固定映射，返回虚拟地址
 
-	memset(ptr, 0, PAGE_SIZE);
+	memset(ptr, 0, PAGE_SIZE);//把刚刚申请的页表内存清零
 
 	/*
 	 * Implicit barriers also ensure the zeroed page is visible to the page
 	 * table walker
 	 */
-	pte_clear_fixmap();
+	pte_clear_fixmap();//清除固定映射
 
-	return phys;
+	return phys;//返回物理地址
 }
 
 static bool pgattr_change_is_safe(u64 old, u64 new)
@@ -155,11 +156,12 @@ static void init_pte(pmd_t *pmdp, unsigned long addr, unsigned long end,
 		     phys_addr_t phys, pgprot_t prot)
 {
 	pte_t *ptep;
-
+	//读取gmd项的值得到pte基地址，然后结合addr计算pte项的地址
+	//并且使用固定映射的方式映射pte基物理地址到pte基虚拟地址
 	ptep = pte_set_fixmap_offset(pmdp, addr);
 	do {
 		pte_t old_pte = READ_ONCE(*ptep);
-
+		//组合物理地址和属性形成pte的值，然后写入pte项中
 		set_pte(ptep, pfn_pte(__phys_to_pfn(phys), prot));
 
 		/*
@@ -169,10 +171,10 @@ static void init_pte(pmd_t *pmdp, unsigned long addr, unsigned long end,
 		BUG_ON(!pgattr_change_is_safe(pte_val(old_pte),
 					      READ_ONCE(pte_val(*ptep))));
 
-		phys += PAGE_SIZE;
-	} while (ptep++, addr += PAGE_SIZE, addr != end);
+		phys += PAGE_SIZE;//计算下一个pte页表项映射的物理地址
+	} while (ptep++, addr += PAGE_SIZE, addr != end);//处理一个个pte项，直到虚拟地址映射完
 
-	pte_clear_fixmap();
+	pte_clear_fixmap();//清除固定映射
 }
 
 static void alloc_init_cont_pte(pmd_t *pmdp, unsigned long addr,
@@ -182,32 +184,36 @@ static void alloc_init_cont_pte(pmd_t *pmdp, unsigned long addr,
 				int flags)
 {
 	unsigned long next;
-	pmd_t pmd = READ_ONCE(*pmdp);
+	pmd_t pmd = READ_ONCE(*pmdp);//读取pmd项的值
 
 	BUG_ON(pmd_sect(pmd));
-	if (pmd_none(pmd)) {
+	if (pmd_none(pmd)) {//如果pmd项是无效项
 		phys_addr_t pte_phys;
 		BUG_ON(!pgtable_alloc);
-		pte_phys = pgtable_alloc(PAGE_SHIFT);
+		pte_phys = pgtable_alloc(PAGE_SHIFT);//调用传入参数pgtable_alloc申请页表内存
+		//将pte页物理基地址结合属性PMD_TYPE_TABLE形成页目录项格式写到pmd项中
 		__pmd_populate(pmdp, pte_phys, PMD_TYPE_TABLE);
-		pmd = READ_ONCE(*pmdp);
+		pmd = READ_ONCE(*pmdp);//读取pmd项的值
 	}
 	BUG_ON(pmd_bad(pmd));
 
 	do {
 		pgprot_t __prot = prot;
 
+		//计算下一个pte项映射的虚拟地址值，当前pte项映射的虚拟地址为[addr,next)
 		next = pte_cont_addr_end(addr, end);
 
-		/* use a contiguous mapping if the range is suitably aligned */
+		//如果范围适当对齐，没有使用NO_CONT_MAPPINGS标志禁用连续映射
 		if ((((addr | next | phys) & ~CONT_PTE_MASK) == 0) &&
 		    (flags & NO_CONT_MAPPINGS) == 0)
+			//更新内存属性，添加PTE_CONT标志位
 			__prot = __pgprot(pgprot_val(prot) | PTE_CONT);
 
+		//真正初始化当前pud指向的pmd页表
 		init_pte(pmdp, addr, next, phys, __prot);
 
-		phys += next - addr;
-	} while (addr = next, addr != end);
+		phys += next - addr;//计算下一个pud页表项映射的物理地址
+	} while (addr = next, addr != end);//遍历虚拟内存，对每一段内存初始化其pte页表
 }
 
 static void init_pmd(pud_t *pudp, unsigned long addr, unsigned long end,
@@ -216,17 +222,20 @@ static void init_pmd(pud_t *pudp, unsigned long addr, unsigned long end,
 {
 	unsigned long next;
 	pmd_t *pmdp;
-
+	//读取pud项的值得到pmd基地址，然后结合addr计算pmd项的地址
+	//并且使用固定映射的方式映射pmd基物理地址到pmd基虚拟地址
 	pmdp = pmd_set_fixmap_offset(pudp, addr);
 	do {
-		pmd_t old_pmd = READ_ONCE(*pmdp);
+		pmd_t old_pmd = READ_ONCE(*pmdp);//读取pmd项的地址得到pud项的值
 
+		//计算下一个pmd项映射的虚拟地址值，当前pmd项映射的虚拟地址为[addr,next)
 		next = pmd_addr_end(addr, end);
 
 		/* try section mapping first */
+		//虚拟地址覆盖了整个pmd项并且没有禁止块映射
 		if (((addr | next | phys) & ~SECTION_MASK) == 0 &&
 		    (flags & NO_BLOCK_MAPPINGS) == 0) {
-			pmd_set_huge(pmdp, phys, prot);
+			pmd_set_huge(pmdp, phys, prot);//填写pmd项的值，设置为块映射
 
 			/*
 			 * After the PMD entry has been populated once, we
@@ -234,17 +243,18 @@ static void init_pmd(pud_t *pudp, unsigned long addr, unsigned long end,
 			 */
 			BUG_ON(!pgattr_change_is_safe(pmd_val(old_pmd),
 						      READ_ONCE(pmd_val(*pmdp))));
-		} else {
+		} else {//这个if分支说明我们不采用BLOCK映射
+			//初始化当前pmd指向的pte页表
 			alloc_init_cont_pte(pmdp, addr, next, phys, prot,
 					    pgtable_alloc, flags);
 
 			BUG_ON(pmd_val(old_pmd) != 0 &&
 			       pmd_val(old_pmd) != READ_ONCE(pmd_val(*pmdp)));
 		}
-		phys += next - addr;
-	} while (pmdp++, addr = next, addr != end);
+		phys += next - addr;//计算下一个pud页表项映射的物理地址
+	} while (pmdp++, addr = next, addr != end);//处理一个个pmd项，直到虚拟地址映射完
 
-	pmd_clear_fixmap();
+	pmd_clear_fixmap();//清除固定映射
 }
 
 static void alloc_init_cont_pmd(pud_t *pudp, unsigned long addr,
@@ -253,35 +263,40 @@ static void alloc_init_cont_pmd(pud_t *pudp, unsigned long addr,
 				phys_addr_t (*pgtable_alloc)(int), int flags)
 {
 	unsigned long next;
-	pud_t pud = READ_ONCE(*pudp);
+	pud_t pud = READ_ONCE(*pudp);//读取pud指针的值到pud
 
 	/*
 	 * Check for initial section mappings in the pgd/pud.
 	 */
-	BUG_ON(pud_sect(pud));
-	if (pud_none(pud)) {
+	BUG_ON(pud_sect(pud));//如果pud项的值表示这是个块内存则报bug
+	if (pud_none(pud)) {//如果pud项是无效项
 		phys_addr_t pmd_phys;
 		BUG_ON(!pgtable_alloc);
-		pmd_phys = pgtable_alloc(PMD_SHIFT);
+		pmd_phys = pgtable_alloc(PMD_SHIFT);//调用传入参数pgtable_alloc申请页表内存
+		//将pmd页物理基地址结合属性PUD_TYPE_TABLE形成页目录项格式写到pud项中
 		__pud_populate(pudp, pmd_phys, PUD_TYPE_TABLE);
-		pud = READ_ONCE(*pudp);
+		pud = READ_ONCE(*pudp);//读取pud项的值
 	}
 	BUG_ON(pud_bad(pud));
 
 	do {
 		pgprot_t __prot = prot;
-
+		
+		//计算下一个pmd项映射的虚拟地址值，当前pmd项映射的虚拟地址为[addr,next)
 		next = pmd_cont_addr_end(addr, end);
 
 		/* use a contiguous mapping if the range is suitably aligned */
+		//如果范围适当对齐，没有使用NO_CONT_MAPPINGS标志禁用连续映射
 		if ((((addr | next | phys) & ~CONT_PMD_MASK) == 0) &&
 		    (flags & NO_CONT_MAPPINGS) == 0)
+			//更新内存属性，添加PTE_CONT标志位
 			__prot = __pgprot(pgprot_val(prot) | PTE_CONT);
 
+		//真正初始化当前pud指向的pmd页表
 		init_pmd(pudp, addr, next, phys, __prot, pgtable_alloc, flags);
 
-		phys += next - addr;
-	} while (addr = next, addr != end);
+		phys += next - addr;//计算下一个pmd页表项映射的物理地址
+	} while (addr = next, addr != end);//遍历虚拟内存，对每一段内存初始化其pmd页表
 }
 
 static inline bool use_1G_block(unsigned long addr, unsigned long next,
@@ -303,15 +318,17 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 {
 	unsigned long next;
 	pud_t *pudp;
+	//五级页表才有的p4dp，在这里p4dp就是pgdp，用作预留接口
 	p4d_t *p4dp = p4d_offset(pgdp, addr);
-	p4d_t p4d = READ_ONCE(*p4dp);
+	p4d_t p4d = READ_ONCE(*p4dp);//读取p4d（pgd）项的值
 
-	if (p4d_none(p4d)) {//pgd中的entry内容为空
+	if (p4d_none(p4d)) {//如果p4d项是无效项
 		phys_addr_t pud_phys;
 		BUG_ON(!pgtable_alloc);
-		pud_phys = pgtable_alloc(PUD_SHIFT);//则需要创建一个pud页表， 
-		__p4d_populate(p4dp, pud_phys, PUD_TYPE_TABLE);//将pud物理地址写到pgd entry
-		p4d = READ_ONCE(*p4dp);
+		pud_phys = pgtable_alloc(PUD_SHIFT);//调用传入参数pgtable_alloc申请页表内存
+		//将pud页物理基地址结合属性PUD_TYPE_TABLE形成页目录项格式写到p4d项中
+		__p4d_populate(p4dp, pud_phys, PUD_TYPE_TABLE);
+		p4d = READ_ONCE(*p4dp);//读取p4d项的值
 	}
 	BUG_ON(p4d_bad(p4d));
 
@@ -321,36 +338,42 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 	 */
 	if (system_state != SYSTEM_BOOTING)
 		mutex_lock(&fixmap_lock);
+	//读取g4d项的值得到pud页表基地址，然后结合addr计算pud项的地址
+	//并且使用固定映射的方式映射pud物理基地址到pud虚拟基地址
 	pudp = pud_set_fixmap_offset(p4dp, addr);
 	do {
-		pud_t old_pud = READ_ONCE(*pudp);
-
+		pud_t old_pud = READ_ONCE(*pudp);//读取pud项的地址得到pud项的值
+		
+		//计算下一个pud项映射的虚拟地址值，当前pud项映射的虚拟地址为[addr,next)
 		next = pud_addr_end(addr, end);
 
 		/*
 		 * For 4K granule only, attempt to put down a 1GB block
 		 */
+		//如果页面是4k粒度的，并且虚拟地址覆盖了整个pud项
 		if (use_1G_block(addr, next, phys) &&
-		    (flags & NO_BLOCK_MAPPINGS) == 0) {
-			pud_set_huge(pudp, phys, prot);
+		    (flags & NO_BLOCK_MAPPINGS) == 0) {//标志没有禁止使用BLOCK
+			pud_set_huge(pudp, phys, prot);//填写pud项的值，设置为块映射
 
 			/*
 			 * After the PUD entry has been populated once, we
 			 * only allow updates to the permission attributes.
 			 */
+			//如果pud项本来是有值的，我们只能修改属性，不能修改物理地址，否则报BUG
 			BUG_ON(!pgattr_change_is_safe(pud_val(old_pud),
 						      READ_ONCE(pud_val(*pudp))));
-		} else {
+		} else {//这个if分支说明我们不采用BLOCK映射
+			//初始化当前pud指向的pmd页表
 			alloc_init_cont_pmd(pudp, addr, next, phys, prot,
 					    pgtable_alloc, flags);
 
 			BUG_ON(pud_val(old_pud) != 0 &&
 			       pud_val(old_pud) != READ_ONCE(pud_val(*pudp)));
 		}
-		phys += next - addr;
-	} while (pudp++, addr = next, addr != end);
+		phys += next - addr;//计算下一个pud页表项映射的物理地址
+	} while (pudp++, addr = next, addr != end);//处理一个个pud项，直到虚拟地址映射完
 
-	pud_clear_fixmap();
+	pud_clear_fixmap();//清除固定映射
 	if (system_state != SYSTEM_BOOTING)
 		mutex_unlock(&fixmap_lock);
 }
@@ -363,26 +386,29 @@ static void __create_pgd_mapping(pgd_t *pgdir, phys_addr_t phys,
 				 int flags)
 {
 	unsigned long addr, end, next;
-	//计算区域起始虚拟地址在pgd中entry的位置 
+ 
+	//通过pgd基地址和虚拟地址计算出pgd项地址
 	pgd_t *pgdp = pgd_offset_pgd(pgdir, virt);
 
 	/*
 	 * If the virtual and physical address don't have the same offset
 	 * within a page, we cannot map the region as the caller expects.
 	 */
-	if (WARN_ON((phys ^ virt) & ~PAGE_MASK))
+	if (WARN_ON((phys ^ virt) & ~PAGE_MASK))//无法理解
 		return;
-	//页表以页为单位创建，起始地址和长度需要页对齐 
+	//页表以页为单位创建，起始地址和结束地址需要页对齐 
 	phys &= PAGE_MASK;
 	addr = virt & PAGE_MASK;
 	end = PAGE_ALIGN(virt + size);
 
+	//
 	do {
-		next = pgd_addr_end(addr, end);//计算下一个pgd entry对应的虚拟地址值
+		//计算下一个pgd项映射的虚拟地址值，得到当前pgd项映射的虚拟地址为[addr,next)
+		next = pgd_addr_end(addr, end);
 		alloc_init_pud(pgdp, addr, next, phys, prot, pgtable_alloc,
-			       flags);//初始化pud页表项
-		phys += next - addr;
-	} while (pgdp++, addr = next, addr != end);//循环pgd entry 
+			       flags);//初始化当前pgd指向的pud页表
+		phys += next - addr;//计算下一个pgd页表项映射的物理地址
+	} while (pgdp++, addr = next, addr != end);//处理一个个pgd项，直到虚拟地址映射完 
 }
 
 static phys_addr_t __pgd_pgtable_alloc(int shift)
@@ -1304,22 +1330,25 @@ void __init early_fixmap_init(void)
  * ever need to use IPIs for TLB broadcasting, then we're in trouble here.
  */
 void __set_fixmap(enum fixed_addresses idx,
-			       phys_addr_t phys, pgprot_t flags)
+                               phys_addr_t phys, pgprot_t flags)
 {
-	unsigned long addr = __fix_to_virt(idx);
-	pte_t *ptep;
+        unsigned long addr = __fix_to_virt(idx);//根据枚举值idx计算对应的虚拟地址
+        pte_t *ptep;
 
-	BUG_ON(idx <= FIX_HOLE || idx >= __end_of_fixed_addresses);
+        BUG_ON(idx <= FIX_HOLE || idx >= __end_of_fixed_addresses);
 
-	ptep = fixmap_pte(addr);
+        ptep = fixmap_pte(addr);/根据固定映射的虚拟地址获取页表条目pte页表项地址
 
-	if (pgprot_val(flags)) {
-		set_pte(ptep, pfn_pte(phys >> PAGE_SHIFT, flags));
-	} else {
-		pte_clear(&init_mm, addr, ptep);
-		flush_tlb_kernel_range(addr, addr+PAGE_SIZE);
-	}
+        if (pgprot_val(flags)) {//如果 flags 包含有效的页属性
+        		//设置页表条目，将物理页帧号和页属性结合起来
+                set_pte(ptep, pfn_pte(phys >> PAGE_SHIFT, flags));
+        } else {//不包含有效的页属性
+                pte_clear(&init_mm, addr, ptep);//清除页表条目
+                //刷新地址为 addr 和 addr+PAGE_SIZE 范围内的TLB
+                flush_tlb_kernel_range(addr, addr+PAGE_SIZE);
+        }
 }
+
 //该函数只能先写pte页表项，事前固定映射已经完成
 void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 {
@@ -1397,15 +1426,16 @@ int __init arch_ioremap_pmd_supported(void)
 
 int pud_set_huge(pud_t *pudp, phys_addr_t phys, pgprot_t prot)
 {
+	//根据物理地址phys和属性prot生成新的pud的值
 	pud_t new_pud = pfn_pud(__phys_to_pfn(phys), mk_pud_sect_prot(prot));
 
-	/* Only allow permission changes for now */
+	//如果pud项本来是有值的，我们只能修改属性，不能修改物理地址，否则报BUG
 	if (!pgattr_change_is_safe(READ_ONCE(pud_val(*pudp)),
 				   pud_val(new_pud)))
 		return 0;
 
 	VM_BUG_ON(phys & ~PUD_MASK);
-	set_pud(pudp, new_pud);
+	set_pud(pudp, new_pud);//把新的pud的值写入pud项中
 	return 1;
 }
 

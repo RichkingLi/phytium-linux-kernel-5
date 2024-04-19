@@ -679,7 +679,7 @@ static inline void set_p4d(p4d_t *p4dp, p4d_t p4d)
 		return;
 	}
 
-	WRITE_ONCE(*p4dp, p4d);
+	WRITE_ONCE(*p4dp, p4d);//把页表项的值写入页表项所在的地址
 	dsb(ishst);
 	isb();
 }
